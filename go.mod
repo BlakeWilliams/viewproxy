@@ -1,3 +1,5 @@
-module github.com/blakewilliams/view-proxy
+module github.com/blakewilliams/viewproxy
 
 go 1.15
+
+require github.com/stretchr/testify v1.7.0
