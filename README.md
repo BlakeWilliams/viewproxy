@@ -12,27 +12,27 @@ To use view-proxy:
 
 ```go
 import "github.com/blakewilliams/view-proxy/internal/server"
-	timeout, err := time.ParseDuration("5s")
+timeout, err := time.ParseDuration("5s")
 
 // Create a new Server Instance
-	server := &server.Server{
-		Port:         3005,
-		ProxyTimeout: timeout,
-		// View-Proxy will hit this URL, forwarding named URL parameters as query params.
-		// The `fragment` query param is the name of the requested fragment to render.
-		Target:       "http://localhost:3000/_view_fragments",
-		Logger:       log.Default,
-	}
+server := &server.Server{
+	Port:         3005,
+	ProxyTimeout: timeout,
+	// View-Proxy will hit this URL, forwarding named URL parameters as query params.
+	// The `fragment` query param is the name of the requested fragment to render.
+	Target:       "http://localhost:3000/_view_fragments",
+	Logger:       log.Default,
+}
 
-	// Define a route with a :name parameter that will be forwarded to the target host.
-	// This will make 3 fragment requests, one for the header, hello, and footer.
-	server.Get("/hello/:name", []string{
-		"header", // GET http://localhost:3000/_view_fragments?fragment=header&name=world
-		"hello",  // GET http://localhost:3000/_view_fragments?fragment=hello&name=world
-		"footer", // GET http://localhost:3000/_view_fragments?fragment=footer&name=world
-	})
+// Define a route with a :name parameter that will be forwarded to the target host.
+// This will make 3 fragment requests, one for the header, hello, and footer.
+server.Get("/hello/:name", []string{
+	"header", // GET http://localhost:3000/_view_fragments?fragment=header&name=world
+	"hello",  // GET http://localhost:3000/_view_fragments?fragment=hello&name=world
+	"footer", // GET http://localhost:3000/_view_fragments?fragment=footer&name=world
+})
 
-	server.ListenAndServe()
+server.ListenAndServe()
 ```
 
 ## Demo Usage
