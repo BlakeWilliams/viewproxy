@@ -37,7 +37,7 @@ server.ListenAndServe()
 
 ## Demo Usage
 
-* The port the server is bound to can be set via the `PORT` environment variable.
+* The port the server is bound to `3005` by default but can be set via the `PORT` environment variable.
 * The target server can be set via the `TARGET` environment variable.
   * The default is `localhost:3000/_view_fragments`
   * View-Proxy will call that end-point with the fragment name being passed as a query parameter. e.g.  `localhost:3000/_view_fragments?fragment=header`
