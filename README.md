@@ -12,12 +12,11 @@ To use view-proxy:
 
 ```go
 import "github.com/blakewilliams/view-proxy/pkg/server"
-timeout, err := time.ParseDuration("5s")
 
 // Create a new Server Instance
 server := &server.Server{
 	Port:         3005,
-	ProxyTimeout: timeout,
+	ProxyTimeout: time.Duration(5)*time.Second,
 	// View-Proxy will hit this URL, forwarding named URL parameters as query params.
 	// The `fragment` query param is the name of the requested fragment to render.
 	Target:       "http://localhost:3000/_view_fragments",

@@ -11,15 +11,9 @@ import (
 )
 
 func main() {
-	timeout, err := time.ParseDuration("5s")
-
-	if err != nil {
-		panic(err)
-	}
-
 	server := &server.Server{
 		Port:         getPort(),
-		ProxyTimeout: timeout,
+		ProxyTimeout: time.Duration(5) * time.Second,
 		Target:       getTarget(),
 		Logger:       buildLogger(),
 	}
