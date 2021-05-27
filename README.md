@@ -49,3 +49,5 @@ To run view-proxy, run `go build ./cmd/demo && ./demo`
 * [ ] Come up with a solution for query param forwarding
 * [x] Add tests for the core workflows
 * [x] Follow a better application structure (`cmd` directory, `pkg` directory, etc)
+* [ ] Add support for handling errors
+* [ ] Copy headers (especially for content-type) from the first request and re-use them for the response
