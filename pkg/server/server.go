@@ -45,12 +45,6 @@ func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, parameters := s.matchingRoute(r.URL.Path)
-	paramString := ""
-
-	// TODO use a URL struct for url generation
-	for name, value := range parameters {
-		paramString = paramString + fmt.Sprintf("&%s=%s", name, url.QueryEscape(value))
-	}
 
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
@@ -58,6 +52,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fragmentContent := make([]chan []byte, 0)
 
 		for _, fragment := range route.fragments {
+			fragmentUrl := s.constructFragmentUrl(fragment, parameters)
+
 			content := make(chan []byte)
 			fragmentContent = append(fragmentContent, content)
 
@@ -65,11 +61,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
 
 				// TODO handle errors
-				url := fmt.Sprintf("%s?fragment=%s%s", s.Target, fragment, paramString)
-				resp, _ := http.Get(url)
+				resp, _ := http.Get(fragmentUrl)
 				duration := time.Since(start)
 
-				s.Logger.Printf("Fetched %s?fragment=%s%s in %v", s.Target, fragment, paramString, duration)
+				s.Logger.Printf("Fetched %s in %v", fragmentUrl, duration)
 
 				// TODO handle errors
 				body, _ := ioutil.ReadAll(resp.Body)
@@ -98,4 +93,22 @@ func (s *Server) ListenAndServe() error {
 
 	s.Logger.Printf("Listening on port %d\n", s.Port)
 	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
+	targetUrl, err := url.Parse(s.Target)
+	if err != nil {
+		panic(err)
+	}
+
+	query := url.Values{}
+
+	for name, value := range parameters {
+		query.Add(name, value)
+	}
+	query.Add("fragment", fragment)
+
+	targetUrl.RawQuery = query.Encode()
+
+	return targetUrl.String()
 }
