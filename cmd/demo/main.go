@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blakewilliams/view-proxy/internal/server"
+	"github.com/blakewilliams/view-proxy/pkg/server"
 )
 
 func main() {

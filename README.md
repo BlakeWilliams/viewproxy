@@ -11,7 +11,7 @@ See `cmd/demo/main.go` for an example of how to use the package.
 To use view-proxy:
 
 ```go
-import "github.com/blakewilliams/view-proxy/internal/server"
+import "github.com/blakewilliams/view-proxy/pkg/server"
 timeout, err := time.ParseDuration("5s")
 
 // Create a new Server Instance
