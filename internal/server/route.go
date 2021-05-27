@@ -1,22 +1,22 @@
-package main
+package server
 
 import (
 	"strings"
 )
 
 type Route struct {
-	Parts []string
+	Parts     []string
 	fragments []string
 }
 
-func newRoute(path string, fragments[]string) *Route {
+func newRoute(path string, fragments []string) *Route {
 	return &Route{
-		Parts: strings.Split(path, "/"),
+		Parts:     strings.Split(path, "/"),
 		fragments: fragments,
 	}
 }
 
-func (r *Route) MatchParts(pathParts []string) bool {
+func (r *Route) matchParts(pathParts []string) bool {
 	if len(r.Parts) != len(pathParts) {
 		return false
 	}
@@ -30,7 +30,7 @@ func (r *Route) MatchParts(pathParts []string) bool {
 	return true
 }
 
-func (r *Route) ParametersFor(pathParts []string) map[string]string {
+func (r *Route) parametersFor(pathParts []string) map[string]string {
 	parameters := make(map[string]string)
 
 	for i := 0; i < len(r.Parts); i++ {
@@ -40,5 +40,5 @@ func (r *Route) ParametersFor(pathParts []string) map[string]string {
 		}
 	}
 
-	return parameters;
+	return parameters
 }

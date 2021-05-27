@@ -1,1 +1,1 @@
-web: view-proxy
+web: demo

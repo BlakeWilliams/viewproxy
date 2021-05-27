@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"reflect"
@@ -24,7 +24,7 @@ func TestRouteMatch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			route := newRoute(test.routePath, make([]string, 0))
 			providedUrlParts := strings.Split(test.providedUrl, "/")
-			got := route.MatchParts(providedUrlParts)
+			got := route.matchParts(providedUrlParts)
 
 			if got != test.want {
 				t.Fatalf("expected route %s to match URL %s", test.routePath, test.providedUrl)
@@ -47,7 +47,7 @@ func TestRouteParameters(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			route := newRoute(test.routePath, make([]string, 0))
 			providedUrlParts := strings.Split(test.providedUrl, "/")
-			got := route.ParametersFor(providedUrlParts)
+			got := route.parametersFor(providedUrlParts)
 
 			if !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("expected route %v with URL %s to have params: %v\n got: %v", test.routePath, test.providedUrl, test.want, got)
