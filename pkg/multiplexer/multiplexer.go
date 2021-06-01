@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 )
@@ -25,25 +26,22 @@ func Fetch(ctx context.Context, urls []string, timeout time.Duration) ([]*Result
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	resultChans := make([]chan *Result, len(urls))
 	wg := sync.WaitGroup{}
-	errorChan := make(chan error)
+	errCh := make(chan error)
+	resultsCh := make(chan *Result, len(urls))
 
-	for i, url := range urls {
-		resultChan := make(chan *Result)
-		resultChans[i] = resultChan
-
+	for _, url := range urls {
 		wg.Add(1)
-		go func(ctx context.Context, url string, resultChan chan *Result, wg *sync.WaitGroup) {
+		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
+			defer wg.Done()
 			result, err := fetchUrl(ctx, url)
 
 			if err != nil {
-				errorChan <- err
+				errCh <- err
 			}
-			wg.Done()
 
-			resultChan <- result
-		}(ctx, url, resultChan, &wg)
+			resultsCh <- result
+		}(ctx, url, resultsCh, &wg)
 	}
 
 	// wait for all responses to complete
@@ -54,20 +52,34 @@ func Fetch(ctx context.Context, urls []string, timeout time.Duration) ([]*Result
 	})(&wg)
 
 	select {
-	case err := <-errorChan:
+	case err := <-errCh:
 		cancel()
 		return make([]*Result, 0), err
 	case <-done:
-		results := make([]*Result, len(resultChans))
+		results := make([]*Result, len(urls))
 
-		for i, resultChan := range resultChans {
-			results[i] = <-resultChan
+		for i := 0; i < len(urls); i++ {
+			results[i] = <-resultsCh
 		}
+
+		sort.SliceStable(results, func(i int, j int) bool {
+			return indexOfResult(urls, results[i]) < indexOfResult(urls, results[j])
+		})
 
 		return results, nil
 	case <-ctx.Done():
 		return make([]*Result, 0), ctx.Err()
 	}
+}
+
+func indexOfResult(urls []string, result *Result) int {
+	for i, url := range urls {
+		if url == result.Url {
+			return i
+		}
+	}
+
+	return -1
 }
 
 func fetchUrl(ctx context.Context, url string) (*Result, error) {
