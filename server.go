@@ -1,6 +1,7 @@
 package viewproxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -65,10 +66,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.Logger.Printf("Errored %v", err)
 		}
 
+		layoutHtml := []byte("")
+		contentHtml := []byte("")
+		isLayout := true
+
 		for _, result := range results {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
-			w.Write(result.Body)
+
+			if isLayout {
+				layoutHtml = result.Body
+			} else {
+				contentHtml = append(contentHtml, result.Body...)
+			}
+
+			// Assume first result is the layout
+			isLayout = false
 		}
+
+		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VOLTRON_CONTENT}}}"), contentHtml, 1)
+		w.Write(outputHtml)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.Write([]byte("404 not found"))

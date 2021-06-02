@@ -17,8 +17,6 @@ func TestBasicServer(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 
-		fmt.Println(r.URL.Path)
-
 		if r.URL.Path == "/layouts/test_layout" {
 			w.Write([]byte("<html>{{{VOLTRON_CONTENT}}}</html>"))
 		} else if fragment == "header" {
