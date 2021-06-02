@@ -13,15 +13,14 @@ import (
 func TestBasicServer(t *testing.T) {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
-		fragment := params.Get("fragment")
 
 		w.WriteHeader(http.StatusOK)
 
-		if fragment == "header" {
+		if r.URL.Path == "/header" {
 			w.Write([]byte("<body>"))
-		} else if fragment == "body" {
+		} else if r.URL.Path == "/body" {
 			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
-		} else if fragment == "footer" {
+		} else if r.URL.Path == "/footer" {
 			w.Write([]byte("</body>"))
 		}
 	})

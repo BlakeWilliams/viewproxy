@@ -26,9 +26,9 @@ server := &viewproxy.Server{
 // Define a route with a :name parameter that will be forwarded to the target host.
 // This will make 3 fragment requests, one for the header, hello, and footer.
 server.Get("/hello/:name", []string{
-	"header", // GET http://localhost:3000/_view_fragments?fragment=header&name=world
-	"hello",  // GET http://localhost:3000/_view_fragments?fragment=hello&name=world
-	"footer", // GET http://localhost:3000/_view_fragments?fragment=footer&name=world
+	"header", // GET http://localhost:3000/_view_fragments/header?name=world
+	"hello",  // GET http://localhost:3000/_view_fragments/hello?name=world
+	"footer", // GET http://localhost:3000/_view_fragments/footer?name=world
 })
 
 server.ListenAndServe()
