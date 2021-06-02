@@ -1,4 +1,4 @@
-package server
+package viewproxy
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestBasicServer(t *testing.T) {
@@ -33,9 +34,10 @@ func TestBasicServer(t *testing.T) {
 	}()
 
 	viewProxyServer := &Server{
-		Port:   9998,
-		Target: "http://localhost:9999",
-		Logger: log.New(ioutil.Discard, "", log.Ldate|log.Ltime),
+		Port:         9998,
+		Target:       "http://localhost:9999",
+		Logger:       log.New(ioutil.Discard, "", log.Ldate|log.Ltime),
+		ProxyTimeout: time.Duration(5) * time.Second,
 	}
 
 	viewProxyServer.Get("/hello/:name", []string{"header", "body", "footer"})

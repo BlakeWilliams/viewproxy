@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blakewilliams/view-proxy/pkg/server"
+	"github.com/blakewilliams/viewproxy"
 )
 
 func main() {
-	server := &server.Server{
+	server := &viewproxy.Server{
 		Port:         getPort(),
 		ProxyTimeout: time.Duration(5) * time.Second,
 		Target:       getTarget(),

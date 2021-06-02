@@ -1,14 +1,15 @@
-package server
+package viewproxy
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
 type Server struct {
@@ -49,32 +50,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
-		fragmentContent := make([]chan []byte, 0)
+		urls := make([]string, 0)
 
 		for _, fragment := range route.fragments {
-			fragmentUrl := s.constructFragmentUrl(fragment, parameters)
-
-			content := make(chan []byte)
-			fragmentContent = append(fragmentContent, content)
-
-			go func(fragment string) {
-				start := time.Now()
-
-				// TODO handle errors
-				resp, _ := http.Get(fragmentUrl)
-				duration := time.Since(start)
-
-				s.Logger.Printf("Fetched %s in %v", fragmentUrl, duration)
-
-				// TODO handle errors
-				body, _ := ioutil.ReadAll(resp.Body)
-				content <- body
-			}(fragment)
+			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
 		}
 
-		for _, content := range fragmentContent {
-			body := <-content
-			w.Write(body)
+		results, err := multiplexer.Fetch(context.TODO(), urls, s.ProxyTimeout)
+
+		if err != nil {
+			// TODO detect 404's and 500's and handle them appropriately
+			s.Logger.Printf("Errored %v", err)
+		}
+
+		for _, result := range results {
+			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
+			w.Write(result.Body)
 		}
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)

@@ -11,10 +11,10 @@ See `cmd/demo/main.go` for an example of how to use the package.
 To use view-proxy:
 
 ```go
-import "github.com/blakewilliams/view-proxy/pkg/server"
+import "github.com/blakewilliams/view-proxy"
 
 // Create a new Server Instance
-server := &server.Server{
+server := &viewproxy.Server{
 	Port:         3005,
 	ProxyTimeout: time.Duration(5)*time.Second,
 	// View-Proxy will hit this URL, forwarding named URL parameters as query params.
