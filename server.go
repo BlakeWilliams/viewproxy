@@ -21,8 +21,8 @@ type Server struct {
 	httpServer   *http.Server
 }
 
-func (s *Server) Get(path string, fragments []string) {
-	route := newRoute(path, fragments)
+func (s *Server) Get(path string, layout string, fragments []string) {
+	route := newRoute(path, layout, fragments)
 	s.routes = append(s.routes, *route)
 }
 
@@ -51,6 +51,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
 		urls := make([]string, 0)
+
+		urls = append(urls, s.constructLayoutUrl(route.Layout, parameters))
 
 		for _, fragment := range route.fragments {
 			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
@@ -84,6 +86,25 @@ func (s *Server) ListenAndServe() error {
 
 	s.Logger.Printf("Listening on port %d\n", s.Port)
 	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
+	targetUrl, err := url.Parse(s.Target)
+	if err != nil {
+		panic(err)
+	}
+
+	targetUrl.Path = targetUrl.Path + "/layouts/" + layout
+
+	query := url.Values{}
+
+	for name, value := range parameters {
+		query.Add(name, value)
+	}
+
+	targetUrl.RawQuery = query.Encode()
+
+	return targetUrl.String()
 }
 
 func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {

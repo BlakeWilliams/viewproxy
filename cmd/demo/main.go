@@ -18,10 +18,8 @@ func main() {
 		Logger:       buildLogger(),
 	}
 
-	server.Get("/hello/:name", []string{
-		"header",
-		"hello",
-		"footer",
+	server.Get("/:user_id/:repository/commit/:commit_oid", "repo/repo_header", []string{
+		"repo/commit_show_content",
 	})
 
 	server.ListenAndServe()
