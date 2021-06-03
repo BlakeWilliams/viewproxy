@@ -66,21 +66,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.Logger.Printf("Errored %v", err)
 		}
 
-		layoutHtml := []byte("")
+		layoutHtml := results[0].Body
 		contentHtml := []byte("")
-		isLayout := true
 
-		for _, result := range results {
+		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
 
-			if isLayout {
-				layoutHtml = result.Body
-			} else {
 				contentHtml = append(contentHtml, result.Body...)
-			}
-
-			// Assume first result is the layout
-			isLayout = false
 		}
 
 		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VOLTRON_CONTENT}}}"), contentHtml, 1)
