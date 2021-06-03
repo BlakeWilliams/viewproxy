@@ -6,12 +6,14 @@ import (
 
 type Route struct {
 	Parts     []string
+	Layout    string
 	fragments []string
 }
 
-func newRoute(path string, fragments []string) *Route {
+func newRoute(path string, layout string, fragments []string) *Route {
 	return &Route{
 		Parts:     strings.Split(path, "/"),
+		Layout:    layout,
 		fragments: fragments,
 	}
 }

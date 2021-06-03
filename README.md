@@ -24,8 +24,10 @@ server := &viewproxy.Server{
 }
 
 // Define a route with a :name parameter that will be forwarded to the target host.
-// This will make 3 fragment requests, one for the header, hello, and footer.
-server.Get("/hello/:name", []string{
+// This will make a layout request and 3 fragment requests, one for the header, hello, and footer.
+
+// GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
+server.Get("/hello/:name", "my_layout", []string{
 	"header", // GET http://localhost:3000/_view_fragments?fragment=header&name=world
 	"hello",  // GET http://localhost:3000/_view_fragments?fragment=hello&name=world
 	"footer", // GET http://localhost:3000/_view_fragments?fragment=footer&name=world
@@ -36,18 +38,18 @@ server.ListenAndServe()
 
 ## Demo Usage
 
-* The port the server is bound to `3005` by default but can be set via the `PORT` environment variable.
-* The target server can be set via the `TARGET` environment variable.
-  * The default is `localhost:3000/_view_fragments`
-  * View-Proxy will call that end-point with the fragment name being passed as a query parameter. e.g.  `localhost:3000/_view_fragments?fragment=header`
+- The port the server is bound to `3005` by default but can be set via the `PORT` environment variable.
+- The target server can be set via the `TARGET` environment variable.
+  - The default is `localhost:3000/_view_fragments`
+  - View-Proxy will call that end-point with the fragment name being passed as a query parameter. e.g. `localhost:3000/_view_fragments?fragment=header`
 
 To run view-proxy, run `go build ./cmd/demo && ./demo`
 
 ## To-Do
 
-* [x] Add logging
-* [ ] Come up with a solution for query param forwarding
-* [x] Add tests for the core workflows
-* [x] Follow a better application structure (`cmd` directory, `pkg` directory, etc)
-* [ ] Add support for handling errors
-* [ ] Copy headers (especially for content-type) from the first request and re-use them for the response
+- [x] Add logging
+- [ ] Come up with a solution for query param forwarding
+- [x] Add tests for the core workflows
+- [x] Follow a better application structure (`cmd` directory, `pkg` directory, etc)
+- [ ] Add support for handling errors
+- [ ] Copy headers (especially for content-type) from the first request and re-use them for the response
