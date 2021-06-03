@@ -16,6 +16,7 @@ func main() {
 		ProxyTimeout: time.Duration(5) * time.Second,
 		Target:       getTarget(),
 		Logger:       buildLogger(),
+		DefaultPageTitle: "Demo App",
 	}
 
 	server.Get("/hello/:name", "my_layout", []string{

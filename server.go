@@ -20,6 +20,7 @@ type Server struct {
 	Target       string
 	Logger       *log.Logger
 	httpServer   *http.Server
+	DefaultPageTitle string
 }
 
 func (s *Server) Get(path string, layout string, fragments []string) {
@@ -67,14 +68,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		layoutHtml := results[0].Body
+		s.Logger.Printf("Fetched %s in %v", results[0].Url, results[0].Duration)
+
 		contentHtml := []byte("")
+		pageTitle := s.DefaultPageTitle
 
 		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
 			contentHtml = append(contentHtml, result.Body...)
+
+			if result.HttpResponse.Header.Get("X-View-Proxy-Title") != "" {
+				pageTitle = result.HttpResponse.Header.Get("X-View-Proxy-Title")
+			}
 		}
 
-		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VOLTRON_CONTENT}}}"), contentHtml, 1)
+		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
+		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 		w.Write(outputHtml)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
