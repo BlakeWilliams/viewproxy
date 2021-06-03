@@ -16,7 +16,9 @@ func TestBasicServer(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 
-		if r.URL.Path == "/header" {
+		if r.URL.Path == "/layouts/test_layout" {
+			w.Write([]byte("<html>{{{VOLTRON_CONTENT}}}</html>"))
+		} else if r.URL.Path == "/header" {
 			w.Write([]byte("<body>"))
 		} else if r.URL.Path == "/body" {
 			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
@@ -39,7 +41,7 @@ func TestBasicServer(t *testing.T) {
 		ProxyTimeout: time.Duration(5) * time.Second,
 	}
 
-	viewProxyServer.Get("/hello/:name", []string{"header", "body", "footer"})
+	viewProxyServer.Get("/hello/:name", "test_layout", []string{"header", "body", "footer"})
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -53,7 +55,7 @@ func TestBasicServer(t *testing.T) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
-	expected := "<body>hello world</body>"
+	expected := "<html><body>hello world</body></html>"
 
 	if string(body) != expected {
 		t.Fatalf("Expected: %s\nGot: %s", expected, string(body))

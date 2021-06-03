@@ -18,7 +18,7 @@ func main() {
 		Logger:       buildLogger(),
 	}
 
-	server.Get("/hello/:name", []string{
+	server.Get("/hello/:name", "my_layout", []string{
 		"header",
 		"hello",
 		"footer",
