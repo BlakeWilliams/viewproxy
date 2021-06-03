@@ -71,8 +71,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
-
-				contentHtml = append(contentHtml, result.Body...)
+			contentHtml = append(contentHtml, result.Body...)
 		}
 
 		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VOLTRON_CONTENT}}}"), contentHtml, 1)
