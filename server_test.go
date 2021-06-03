@@ -17,7 +17,7 @@ func TestBasicServer(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 
 		if r.URL.Path == "/layouts/test_layout" {
-			w.Write([]byte("<html>{{{VOLTRON_CONTENT}}}</html>"))
+			w.Write([]byte("<html>{{{VIEW_PROXY_CONTENT}}}</html>"))
 		} else if r.URL.Path == "/header" {
 			w.Write([]byte("<body>"))
 		} else if r.URL.Path == "/body" {
