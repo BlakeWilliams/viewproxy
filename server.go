@@ -115,7 +115,10 @@ func (s *Server) constructLayoutUrl(layout string, parameters map[string]string)
 }
 
 func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(s.Target)
+	targetUrl, err := url.Parse(
+		fmt.Sprintf("%s/%s", s.Target, fragment),
+	)
+
 	if err != nil {
 		panic(err)
 	}
@@ -125,7 +128,6 @@ func (s *Server) constructFragmentUrl(fragment string, parameters map[string]str
 	for name, value := range parameters {
 		query.Add(name, value)
 	}
-	query.Add("fragment", fragment)
 
 	targetUrl.RawQuery = query.Encode()
 

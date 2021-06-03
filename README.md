@@ -28,9 +28,9 @@ server := &viewproxy.Server{
 
 // GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
 server.Get("/hello/:name", "my_layout", []string{
-	"header", // GET http://localhost:3000/_view_fragments?fragment=header&name=world
-	"hello",  // GET http://localhost:3000/_view_fragments?fragment=hello&name=world
-	"footer", // GET http://localhost:3000/_view_fragments?fragment=footer&name=world
+	"header", // GET http://localhost:3000/_view_fragments/header?name=world
+	"hello",  // GET http://localhost:3000/_view_fragments/hello?name=world
+	"footer", // GET http://localhost:3000/_view_fragments/footer?name=world
 })
 
 server.ListenAndServe()
