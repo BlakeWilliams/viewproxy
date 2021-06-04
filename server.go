@@ -39,6 +39,20 @@ func (s *Server) IgnoreHeader(name string) {
 	s.ignoreHeaders[strings.ToLower(name)] = setMember
 }
 
+func (s *Server) LoadRouteConfig(filePath string) error {
+	routeEntries, err := readConfigFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	for _, routeEntry := range routeEntries {
+		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
+		s.Get(routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
+	}
+
+	return nil
+}
+
 func (s *Server) Shutdown(ctx context.Context) {
 	s.httpServer.Shutdown(ctx)
 }
@@ -79,7 +93,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		layoutHtml := results[0].Body
-		s.Logger.Printf("Fetched %s in %v", results[0].Url, results[0].Duration)
+		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
 
 		contentHtml := []byte("")
 		pageTitle := s.DefaultPageTitle
@@ -106,6 +120,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write(outputHtml)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
+		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
 	}
 }
@@ -131,7 +146,7 @@ func (s *Server) constructLayoutUrl(layout string, parameters map[string]string)
 		panic(err)
 	}
 
-	targetUrl.Path = targetUrl.Path + "/layouts/" + layout
+	targetUrl.Path = targetUrl.Path + layout
 
 	query := url.Values{}
 

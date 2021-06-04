@@ -15,7 +15,7 @@ var defaultTimeout = time.Duration(5) * time.Second
 func TestFetchReturnsMultipleResults(t *testing.T) {
 	server := startServer()
 
-	urls := []string{"http://localhost:9999?fragment=header", "http://localhost:9999?fragment=footer"}
+	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
 	results, err := Fetch(context.TODO(), urls, defaultTimeout)
 
 	assert.Nil(t, err)
@@ -38,11 +38,11 @@ func TestFetchReturnsMultipleResults(t *testing.T) {
 func Test404ReturnsError(t *testing.T) {
 	server := startServer()
 
-	urls := []string{"http://localhost:9999/wowomg"}
+	urls := []string{"http://localhost:9990/wowomg"}
 	results, err := Fetch(context.TODO(), urls, defaultTimeout)
 
 	assert.ErrorIs(t, err, NotFoundErr)
-	assert.EqualError(t, err, "URL http://localhost:9999/wowomg: Not found")
+	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: Not found")
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
@@ -52,7 +52,7 @@ func Test500ReturnsError(t *testing.T) {
 	server := startServer()
 	start := time.Now()
 
-	urls := []string{"http://localhost:9999/?fragment=oops", "http://localhost:9999?fragment=slow"}
+	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
 	ctx := context.Background()
 	results, err := Fetch(ctx, urls, defaultTimeout)
 
@@ -60,7 +60,7 @@ func Test500ReturnsError(t *testing.T) {
 
 	assert.Less(t, duration, time.Duration(3)*time.Second)
 	assert.ErrorIs(t, err, Non2xxErr)
-	assert.EqualError(t, err, "Status 500 for URL http://localhost:9999/?fragment=oops: Status code not in 2xx range")
+	assert.EqualError(t, err, "Status 500 for URL http://localhost:9990/?fragment=oops: Status code not in 2xx range")
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
@@ -70,7 +70,7 @@ func TestTimeout(t *testing.T) {
 	server := startServer()
 	start := time.Now()
 
-	urls := []string{"http://localhost:9999?fragment=slow"}
+	urls := []string{"http://localhost:9990?fragment=slow"}
 	_, err := Fetch(context.Background(), urls, time.Duration(100)*time.Millisecond)
 	duration := time.Since(start)
 
@@ -103,7 +103,7 @@ func startServer() *http.Server {
 		}
 	})
 
-	testServer := &http.Server{Addr: ":9999", Handler: instance}
+	testServer := &http.Server{Addr: ":9990", Handler: instance}
 	go func() {
 		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
