@@ -19,6 +19,7 @@ func main() {
 		DefaultPageTitle: "Demo App",
 	}
 
+	server.IgnoreHeader("etag")
 	server.Get("/hello/:name", "my_layout", []string{
 		"header",
 		"hello",

@@ -14,18 +14,29 @@ import (
 )
 
 type Server struct {
-	Port         int
-	ProxyTimeout time.Duration
-	routes       []Route
-	Target       string
-	Logger       *log.Logger
-	httpServer   *http.Server
+	Port             int
+	ProxyTimeout     time.Duration
+	routes           []Route
+	Target           string
+	Logger           *log.Logger
+	httpServer       *http.Server
 	DefaultPageTitle string
+	ignoreHeaders    map[string]struct{}
 }
+
+var setMember struct{}
 
 func (s *Server) Get(path string, layout string, fragments []string) {
 	route := newRoute(path, layout, fragments)
 	s.routes = append(s.routes, *route)
+}
+
+func (s *Server) IgnoreHeader(name string) {
+	if s.ignoreHeaders == nil {
+		s.ignoreHeaders = make(map[string]struct{}, 0)
+	}
+
+	s.ignoreHeaders[strings.ToLower(name)] = setMember
 }
 
 func (s *Server) Shutdown(ctx context.Context) {
@@ -73,6 +84,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentHtml := []byte("")
 		pageTitle := s.DefaultPageTitle
 
+		for name, values := range results[0].HttpResponse.Header {
+			if _, ok := s.ignoreHeaders[strings.ToLower(name)]; !ok {
+				for _, value := range values {
+					w.Header().Add(name, value)
+				}
+			}
+		}
+
 		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
 			contentHtml = append(contentHtml, result.Body...)
@@ -92,6 +111,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListenAndServe() error {
+	s.IgnoreHeader("Content-Length")
+
 	s.httpServer = &http.Server{
 		Addr:           fmt.Sprintf(":%d", s.Port),
 		Handler:        s,
