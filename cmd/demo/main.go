@@ -12,10 +12,10 @@ import (
 
 func main() {
 	server := &viewproxy.Server{
-		Port:         getPort(),
-		ProxyTimeout: time.Duration(5) * time.Second,
-		Target:       getTarget(),
-		Logger:       buildLogger(),
+		Port:             getPort(),
+		ProxyTimeout:     time.Duration(5) * time.Second,
+		Target:           getTarget(),
+		Logger:           buildLogger(),
 		DefaultPageTitle: "Demo App",
 	}
 
