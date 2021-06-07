@@ -3,6 +3,7 @@ package viewproxy
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,6 +14,9 @@ import (
 func TestBasicServer(t *testing.T) {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
+
+		w.Header().Set("EtAg", "1234")
+		w.Header().Set("X-Name", "viewproxy")
 
 		w.WriteHeader(http.StatusOK)
 
@@ -27,7 +31,7 @@ func TestBasicServer(t *testing.T) {
 		}
 	})
 
-	testServer := &http.Server{Addr: ":9999", Handler: instance}
+	testServer := &http.Server{Addr: ":9994", Handler: instance}
 	go func() {
 		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -36,12 +40,14 @@ func TestBasicServer(t *testing.T) {
 
 	viewProxyServer := &Server{
 		Port:         9998,
-		Target:       "http://localhost:9999",
+		Target:       "http://localhost:9994",
 		Logger:       log.New(ioutil.Discard, "", log.Ldate|log.Ltime),
 		ProxyTimeout: time.Duration(5) * time.Second,
 	}
 
+	viewProxyServer.IgnoreHeader("etag")
 	viewProxyServer.Get("/hello/:name", "test_layout", []string{"header", "body", "footer"})
+
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -57,9 +63,10 @@ func TestBasicServer(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	expected := "<html><body>hello world</body></html>"
 
-	if string(body) != expected {
-		t.Fatalf("Expected: %s\nGot: %s", expected, string(body))
-	}
+	assert.Equal(t, expected, string(body))
+
+	assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+	assert.Equal(t, "", resp.Header.Get("etag"), "Expexted response to have removed etag header")
 
 	testServer.Shutdown(context.TODO())
 	viewProxyServer.Shutdown(context.TODO())
