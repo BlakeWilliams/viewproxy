@@ -26,16 +26,24 @@ type Server struct {
 
 var setMember struct{}
 
+func NewServer(target string) *Server {
+	return &Server{
+		DefaultPageTitle: "viewproxy",
+		Logger:           log.Default(),
+		Port:             3005,
+		ProxyTimeout:     time.Duration(10) * time.Second,
+		Target:           target,
+		ignoreHeaders:    make(map[string]struct{}, 0),
+		routes:           make([]Route, 0),
+	}
+}
+
 func (s *Server) Get(path string, layout string, fragments []string) {
 	route := newRoute(path, layout, fragments)
 	s.routes = append(s.routes, *route)
 }
 
 func (s *Server) IgnoreHeader(name string) {
-	if s.ignoreHeaders == nil {
-		s.ignoreHeaders = make(map[string]struct{}, 0)
-	}
-
 	s.ignoreHeaders[strings.ToLower(name)] = setMember
 }
 

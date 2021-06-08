@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"testing"
-	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -20,12 +19,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasicServer(t *testing.T) {
-	viewProxyServer := &Server{
-		Port:         9998,
-		Target:       "http://localhost:9994",
-		Logger:       log.New(ioutil.Discard, "", log.Ldate|log.Ltime),
-		ProxyTimeout: time.Duration(5) * time.Second,
-	}
+	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer.Port = 9998
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.IgnoreHeader("etag")
 	viewProxyServer.Get("/hello/:name", "/layouts/test_layout", []string{"header", "body", "footer"})
@@ -67,12 +63,9 @@ func TestServerFromConfig(t *testing.T) {
 
 	file.Close()
 
-	viewProxyServer := &Server{
-		Port:         9998,
-		Target:       "http://localhost:9994",
-		Logger:       log.New(ioutil.Discard, "", log.Ldate|log.Ltime),
-		ProxyTimeout: time.Duration(5) * time.Second,
-	}
+	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer.Port = 9998
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.LoadRouteConfig(file.Name())
 	go func() {

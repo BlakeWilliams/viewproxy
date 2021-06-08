@@ -11,15 +11,14 @@ import (
 )
 
 func main() {
-	server := &viewproxy.Server{
-		Port:             getPort(),
-		ProxyTimeout:     time.Duration(5) * time.Second,
-		Target:           getTarget(),
-		Logger:           buildLogger(),
-		DefaultPageTitle: "Demo App",
-	}
-
+	target := getTarget()
+	server := viewproxy.NewServer(target)
+	server.Port = getPort()
+	server.ProxyTimeout = time.Duration(5) * time.Second
+	server.Logger = buildLogger()
+	server.DefaultPageTitle = "Demo app"
 	server.IgnoreHeader("etag")
+
 	server.Get("/hello/:name", "my_layout", []string{
 		"header",
 		"hello",
