@@ -22,7 +22,7 @@ type Result struct {
 	StatusCode   int
 }
 
-func Fetch(ctx context.Context, urls []string, timeout time.Duration) ([]*Result, error) {
+func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration) ([]*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -34,7 +34,7 @@ func Fetch(ctx context.Context, urls []string, timeout time.Duration) ([]*Result
 		wg.Add(1)
 		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
-			result, err := fetchUrl(ctx, url)
+			result, err := FetchUrl(ctx, url, headers)
 
 			if err != nil {
 				errCh <- err
@@ -82,10 +82,16 @@ func indexOfResult(urls []string, result *Result) int {
 	return -1
 }
 
-func fetchUrl(ctx context.Context, url string) (*Result, error) {
+func FetchUrlWithoutStatusCodeCheck(ctx context.Context, url string, headers http.Header) (*Result, error) {
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	for name, values := range headers {
+		for _, value := range values {
+			req.Header.Add(name, value)
+		}
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -103,17 +109,6 @@ func fetchUrl(ctx context.Context, url string) (*Result, error) {
 		return nil, err
 	}
 
-	// 404 is a failure, we should cancel the other requests
-	if resp.StatusCode == 404 {
-		return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
-	}
-
-	// Any non 2xx status code should be considered an error
-	if !(resp.StatusCode >= 200 && resp.StatusCode <= 299) {
-		return nil, fmt.Errorf("Status %d for URL %s: %w", resp.StatusCode, url, Non2xxErr)
-	}
-
-	// TODO handle errors
 	return &Result{
 		Url:          url,
 		Duration:     duration,
@@ -121,4 +116,24 @@ func fetchUrl(ctx context.Context, url string) (*Result, error) {
 		Body:         body,
 		StatusCode:   resp.StatusCode,
 	}, nil
+}
+
+func FetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
+	result, err := FetchUrlWithoutStatusCodeCheck(ctx, url, headers)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 404 is a failure, we should cancel the other requests
+	if result.StatusCode == 404 {
+		return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
+	}
+
+	// Any non 2xx status code should be considered an error
+	if !(result.StatusCode >= 200 && result.StatusCode <= 299) {
+		return nil, fmt.Errorf("Status %d for URL %s: %w", result.StatusCode, url, Non2xxErr)
+	}
+
+	return result, nil
 }

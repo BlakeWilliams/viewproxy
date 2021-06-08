@@ -11,14 +11,10 @@ import (
 	"testing"
 )
 
-func TestMain(m *testing.M) {
-	targetServer := startTargetServer()
-	result := m.Run()
-	targetServer.Shutdown(context.TODO())
-	os.Exit(result)
-}
-
 func TestBasicServer(t *testing.T) {
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
+
 	viewProxyServer := NewServer("http://localhost:9994")
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
@@ -48,12 +44,14 @@ func TestBasicServer(t *testing.T) {
 }
 
 func TestServerFromConfig(t *testing.T) {
-	file, err := ioutil.TempFile(os.TempDir(), "config.json")
-	defer os.Remove(file.Name())
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
 
+	file, err := ioutil.TempFile(os.TempDir(), "config.json")
 	if err != nil {
 		t.Error(err)
 	}
+	defer os.Remove(file.Name())
 
 	file.Write([]byte(`[{
 		"url": "/hello/:name",
@@ -86,22 +84,82 @@ func TestServerFromConfig(t *testing.T) {
 	assert.Equal(t, expected, string(body))
 }
 
+func TestPassThroughEnabled(t *testing.T) {
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
+
+	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer.Port = 9995
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.PassThrough = true
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	resp, err := http.Get("http://localhost:9995/hello/world")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+
+	assert.Equal(t, 404, resp.StatusCode)
+	assert.Equal(t, "target: 404 not found", string(body))
+}
+
+func TestPassThroughDisabled(t *testing.T) {
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
+
+	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.PassThrough = false
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	resp, err := http.Get("http://localhost:9993/hello/world")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+
+	assert.Equal(t, 404, resp.StatusCode)
+	assert.Equal(t, "404 not found", string(body))
+}
+
 func startTargetServer() *http.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
 		w.Header().Set("EtAg", "1234")
 		w.Header().Set("X-Name", "viewproxy")
-		w.WriteHeader(http.StatusOK)
 
 		if r.URL.Path == "/layouts/test_layout" {
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<html>{{{VIEW_PROXY_CONTENT}}}</html>"))
 		} else if r.URL.Path == "/header" {
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<body>"))
 		} else if r.URL.Path == "/body" {
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
 		} else if r.URL.Path == "/footer" {
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("</body>"))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("target: 404 not found"))
 		}
 	})
 

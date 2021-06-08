@@ -22,6 +22,7 @@ type Server struct {
 	httpServer       *http.Server
 	DefaultPageTitle string
 	ignoreHeaders    map[string]struct{}
+	PassThrough      bool
 }
 
 var setMember struct{}
@@ -32,6 +33,7 @@ func NewServer(target string) *Server {
 		Logger:           log.Default(),
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
+		PassThrough:      false,
 		Target:           target,
 		ignoreHeaders:    make(map[string]struct{}, 0),
 		routes:           make([]Route, 0),
@@ -93,7 +95,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
 		}
 
-		results, err := multiplexer.Fetch(context.TODO(), urls, s.ProxyTimeout)
+		results, err := multiplexer.Fetch(context.TODO(), urls, http.Header{}, s.ProxyTimeout)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
@@ -126,6 +128,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
 		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 		w.Write(outputHtml)
+	} else if s.PassThrough {
+		targetUrl, err := url.Parse(
+			fmt.Sprintf("%s/%s", s.Target, r.URL.String()),
+		)
+		if err != nil {
+			fmt.Println(err)
+			s.Logger.Printf("Pass through error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal Server Error"))
+			return
+		}
+
+		// TODO handle timeouts
+		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(context.TODO(), targetUrl.String(), r.Header)
+
+		if err != nil {
+			fmt.Println(err)
+			s.Logger.Printf("Pass through error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal Server Error"))
+			return
+		}
+
+		for name, values := range result.HttpResponse.Header {
+			for _, value := range values {
+				w.Header().Add(name, value)
+			}
+		}
+
+		w.WriteHeader(result.StatusCode)
+		w.Write(result.Body)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)
