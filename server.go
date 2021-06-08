@@ -16,7 +16,7 @@ type Server struct {
 	Port             int
 	ProxyTimeout     time.Duration
 	routes           []Route
-	Target           string
+	target           string
 	Logger           *log.Logger
 	httpServer       *http.Server
 	DefaultPageTitle string
@@ -33,14 +33,21 @@ func NewServer(target string) *Server {
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
-		Target:           target,
+		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
 	}
 }
 
 func (s *Server) Get(path string, layout string, fragments []string) {
-	route := newRoute(path, layout, fragments)
+	baseLayoutUrl := s.urlFromTarget(layout)
+	baseFragmentUrls := make([]string, len(fragments))
+
+	for i, fragment := range fragments {
+		baseFragmentUrls[i] = s.urlFromTarget(fragment)
+	}
+
+	route := newRoute(path, baseLayoutUrl, baseFragmentUrls)
 	s.routes = append(s.routes, *route)
 }
 
@@ -90,14 +97,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
-		urls := make([]string, 0)
-		urls = append(urls, s.constructLayoutUrl(route.Layout, parameters))
-
-		for _, fragment := range route.fragments {
-			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
-		}
-
-		results, err := multiplexer.Fetch(context.TODO(), urls, http.Header{}, s.ProxyTimeout)
+		results, err := multiplexer.Fetch(
+			context.TODO(),
+			route.fragmentsWithParameters(parameters),
+			http.Header{},
+			s.ProxyTimeout,
+		)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
@@ -116,7 +121,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resBuilder.Write()
 	} else if s.PassThrough {
 		targetUrl, err := url.Parse(
-			fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(r.URL.String(), "/")),
+			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
 
 		if err != nil {
@@ -168,7 +173,7 @@ func (s *Server) ListenAndServe() error {
 
 func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
 	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(layout, "/")),
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(layout, "/")),
 	)
 
 	// TODO this should not panic
@@ -189,7 +194,7 @@ func (s *Server) constructLayoutUrl(layout string, parameters map[string]string)
 
 func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
 	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(fragment, "/")),
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
 	)
 
 	if err != nil {
@@ -203,6 +208,19 @@ func (s *Server) constructFragmentUrl(fragment string, parameters map[string]str
 	}
 
 	targetUrl.RawQuery = query.Encode()
+
+	return targetUrl.String()
+}
+
+func (s *Server) urlFromTarget(fragment string) string {
+	targetUrl, err := url.Parse(
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
+	)
+
+	if err != nil {
+		// It should be okay to panic here, since this should only be called at boot time
+		panic(err)
+	}
 
 	return targetUrl.String()
 }
