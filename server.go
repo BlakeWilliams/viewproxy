@@ -151,6 +151,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(result.StatusCode)
 		w.Write(result.Body)
+
+		s.Logger.Printf("Proxied %s in %v", result.Url, result.Duration)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)
