@@ -22,9 +22,23 @@ type Server struct {
 	httpServer       *http.Server
 	DefaultPageTitle string
 	ignoreHeaders    map[string]struct{}
+	PassThrough      bool
 }
 
 var setMember struct{}
+
+func NewServer(target string) *Server {
+	return &Server{
+		DefaultPageTitle: "viewproxy",
+		Logger:           log.Default(),
+		Port:             3005,
+		ProxyTimeout:     time.Duration(10) * time.Second,
+		PassThrough:      false,
+		Target:           target,
+		ignoreHeaders:    make(map[string]struct{}, 0),
+		routes:           make([]Route, 0),
+	}
+}
 
 func (s *Server) Get(path string, layout string, fragments []string) {
 	route := newRoute(path, layout, fragments)
@@ -32,10 +46,6 @@ func (s *Server) Get(path string, layout string, fragments []string) {
 }
 
 func (s *Server) IgnoreHeader(name string) {
-	if s.ignoreHeaders == nil {
-		s.ignoreHeaders = make(map[string]struct{}, 0)
-	}
-
 	s.ignoreHeaders[strings.ToLower(name)] = setMember
 }
 
@@ -55,6 +65,10 @@ func (s *Server) LoadRouteConfig(filePath string) error {
 
 func (s *Server) Shutdown(ctx context.Context) {
 	s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) Close() {
+	s.httpServer.Close()
 }
 
 // TODO this should probably be a tree structure for faster lookups
@@ -85,7 +99,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
 		}
 
-		results, err := multiplexer.Fetch(context.TODO(), urls, s.ProxyTimeout)
+		results, err := multiplexer.Fetch(context.TODO(), urls, http.Header{}, s.ProxyTimeout)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
@@ -118,11 +132,43 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
 		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 		w.Write(outputHtml)
+	} else if s.PassThrough {
+		targetUrl, err := url.Parse(
+			fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(r.URL.String(), "/")),
+		)
+
+		if err != nil {
+			s.handleProxyError(err, w)
+			return
+		}
+
+		result, err := multiplexer.ProxyRequest(context.TODO(), targetUrl.String(), r)
+
+		if err != nil {
+			s.handleProxyError(err, w)
+			return
+		}
+
+		for name, values := range result.HeadersWithoutProxyHeaders() {
+			w.Header()[name] = values
+		}
+
+		w.WriteHeader(result.StatusCode)
+		w.Write(result.Body)
+
+		s.Logger.Printf("Proxied %s in %v", result.Url, result.Duration)
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
 	}
+}
+
+func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
+	s.Logger.Printf("Pass through error: %v", err)
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("Internal Server Error"))
+	return
 }
 
 func (s *Server) ListenAndServe() error {
@@ -141,12 +187,14 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(s.Target)
+	targetUrl, err := url.Parse(
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(layout, "/")),
+	)
+
+	// TODO this should not panic
 	if err != nil {
 		panic(err)
 	}
-
-	targetUrl.Path = targetUrl.Path + layout
 
 	query := url.Values{}
 
@@ -161,7 +209,7 @@ func (s *Server) constructLayoutUrl(layout string, parameters map[string]string)
 
 func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
 	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", s.Target, fragment),
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(fragment, "/")),
 	)
 
 	if err != nil {
