@@ -20,7 +20,7 @@ type Server struct {
 	Logger           *log.Logger
 	httpServer       *http.Server
 	DefaultPageTitle string
-	ignoreHeaders    map[string]struct{}
+	ignoreHeaders    []string
 	PassThrough      bool
 }
 
@@ -34,7 +34,7 @@ func NewServer(target string) *Server {
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
 		Target:           target,
-		ignoreHeaders:    make(map[string]struct{}, 0),
+		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
 	}
 }
@@ -45,7 +45,7 @@ func (s *Server) Get(path string, layout string, fragments []string) {
 }
 
 func (s *Server) IgnoreHeader(name string) {
-	s.ignoreHeaders[strings.ToLower(name)] = setMember
+	s.ignoreHeaders = append(s.ignoreHeaders, name)
 }
 
 func (s *Server) LoadRouteConfig(filePath string) error {
@@ -91,7 +91,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
 		urls := make([]string, 0)
-
 		urls = append(urls, s.constructLayoutUrl(route.Layout, parameters))
 
 		for _, fragment := range route.fragments {
@@ -112,6 +111,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		resBuilder := newResponseBuilder(*s, w)
 		resBuilder.SetLayout(results[0])
+		resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders())
 		resBuilder.SetFragments(results[1:])
 		resBuilder.Write()
 	} else if s.PassThrough {
@@ -130,15 +130,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.handleProxyError(err, w)
 			return
 		}
-
-		for name, values := range result.HeadersWithoutProxyHeaders() {
-			w.Header()[name] = values
-		}
-
-		w.WriteHeader(result.StatusCode)
-		w.Write(result.Body)
-
 		s.Logger.Printf("Proxied %s in %v", result.Url, result.Duration)
+
+		resBuilder := newResponseBuilder(*s, w)
+		resBuilder.StatusCode = result.StatusCode
+		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders())
+		resBuilder.SetFragments([]*multiplexer.Result{result})
+		resBuilder.Write()
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)

@@ -4,28 +4,32 @@ import (
 	"bytes"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"net/http"
-	"strings"
 )
 
 type responseBuilder struct {
-	writer http.ResponseWriter
-	server Server
-	body   []byte
+	writer     http.ResponseWriter
+	server     Server
+	body       []byte
+	StatusCode int
 }
 
 func newResponseBuilder(server Server, w http.ResponseWriter) *responseBuilder {
-	return &responseBuilder{server: server, writer: w}
+	return &responseBuilder{server: server, writer: w, StatusCode: 200}
 }
 
 func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 	rb.body = result.Body
+}
 
-	for name, values := range result.HttpResponse.Header {
-		if _, ok := rb.server.ignoreHeaders[strings.ToLower(name)]; !ok {
-			for _, value := range values {
-				rb.writer.Header().Add(name, value)
-			}
+func (rb *responseBuilder) SetHeaders(headers http.Header) {
+	for name, values := range headers {
+		for _, value := range values {
+			rb.writer.Header().Add(name, value)
 		}
+	}
+
+	for _, ignoredHeader := range rb.server.ignoreHeaders {
+		rb.writer.Header().Del(ignoredHeader)
 	}
 }
 
@@ -45,12 +49,18 @@ func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 		pageTitle = rb.server.DefaultPageTitle
 	}
 
-	outputHtml := bytes.Replace(rb.body, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
-	outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
+	if len(rb.body) == 0 {
+		rb.body = contentHtml
+	} else {
+		outputHtml := bytes.Replace(rb.body, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
+		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 
-	rb.body = outputHtml
+		rb.body = outputHtml
+	}
+
 }
 
 func (rb *responseBuilder) Write() {
+	rb.writer.WriteHeader(rb.StatusCode)
 	rb.writer.Write(rb.body)
 }
