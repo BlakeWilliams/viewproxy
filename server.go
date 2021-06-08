@@ -1,7 +1,6 @@
 package viewproxy
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -106,32 +105,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.Logger.Printf("Errored %v", err)
 		}
 
-		layoutHtml := results[0].Body
 		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
-
-		contentHtml := []byte("")
-		pageTitle := s.DefaultPageTitle
-
-		for name, values := range results[0].HttpResponse.Header {
-			if _, ok := s.ignoreHeaders[strings.ToLower(name)]; !ok {
-				for _, value := range values {
-					w.Header().Add(name, value)
-				}
-			}
-		}
-
 		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
-			contentHtml = append(contentHtml, result.Body...)
-
-			if result.HttpResponse.Header.Get("X-View-Proxy-Title") != "" {
-				pageTitle = result.HttpResponse.Header.Get("X-View-Proxy-Title")
-			}
 		}
 
-		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
-		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
-		w.Write(outputHtml)
+		resBuilder := newResponseBuilder(*s, w)
+		resBuilder.SetLayout(results[0])
+		resBuilder.SetFragments(results[1:])
+		resBuilder.Write()
 	} else if s.PassThrough {
 		targetUrl, err := url.Parse(
 			fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(r.URL.String(), "/")),
