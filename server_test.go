@@ -101,7 +101,7 @@ func TestPassThroughEnabled(t *testing.T) {
 	}()
 	defer viewProxyServer.Close()
 
-	resp, err := http.Get("http://localhost:9995/hello/world")
+	resp, err := http.Get("http://localhost:9995/oops")
 
 	if err != nil {
 		t.Fatal(err)
@@ -109,8 +109,8 @@ func TestPassThroughEnabled(t *testing.T) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 
-	assert.Equal(t, 404, resp.StatusCode)
-	assert.Equal(t, "target: 404 not found", string(body))
+	assert.Equal(t, 500, resp.StatusCode)
+	assert.Equal(t, "Something went wrong", string(body))
 }
 
 func TestPassThroughDisabled(t *testing.T) {
@@ -160,6 +160,9 @@ func startTargetServer() *http.Server {
 		} else if r.URL.Path == "/footer" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("</body>"))
+		} else if r.URL.Path == "/oops" {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Something went wrong"))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))

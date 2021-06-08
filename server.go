@@ -134,7 +134,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write(outputHtml)
 	} else if s.PassThrough {
 		targetUrl, err := url.Parse(
-			fmt.Sprintf("%s/%s", s.Target, r.URL.String()),
+			fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
 
 		if err != nil {
@@ -187,12 +187,14 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(s.Target)
+	targetUrl, err := url.Parse(
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(layout, "/")),
+	)
+
+	// TODO this should not panic
 	if err != nil {
 		panic(err)
 	}
-
-	targetUrl.Path = targetUrl.Path + layout
 
 	query := url.Values{}
 
@@ -207,7 +209,7 @@ func (s *Server) constructLayoutUrl(layout string, parameters map[string]string)
 
 func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
 	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", s.Target, fragment),
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(fragment, "/")),
 	)
 
 	if err != nil {
