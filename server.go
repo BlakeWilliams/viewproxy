@@ -132,29 +132,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		targetUrl, err := url.Parse(
 			fmt.Sprintf("%s/%s", s.Target, r.URL.String()),
 		)
+
 		if err != nil {
-			fmt.Println(err)
-			s.Logger.Printf("Pass through error: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal Server Error"))
+			s.handleProxyError(err, w)
 			return
 		}
 
-		// TODO handle timeouts
-		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(context.TODO(), targetUrl.String(), r.Header)
+		result, err := multiplexer.ProxyRequest(context.TODO(), targetUrl.String(), r)
 
 		if err != nil {
-			fmt.Println(err)
-			s.Logger.Printf("Pass through error: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal Server Error"))
+			s.handleProxyError(err, w)
 			return
 		}
 
-		for name, values := range result.HttpResponse.Header {
-			for _, value := range values {
-				w.Header().Add(name, value)
-			}
+		for name, values := range result.HeadersWithoutProxyHeaders() {
+			w.Header()[name] = values
 		}
 
 		w.WriteHeader(result.StatusCode)
@@ -164,6 +156,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
 	}
+}
+
+func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
+	s.Logger.Printf("Pass through error: %v", err)
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("Internal Server Error"))
+	return
 }
 
 func (s *Server) ListenAndServe() error {
