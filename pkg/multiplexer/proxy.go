@@ -7,6 +7,7 @@ import (
 	"net/http"
 )
 
+// Hop-by-hop headers defined here: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers
 var HopByHopHeaders []string = []string{
 	"Connection",
 	"Keep-Alive",
