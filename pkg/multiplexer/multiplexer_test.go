@@ -101,7 +101,7 @@ func TestFetchWithoutStatusCodeCheckIgnoresStatuses(t *testing.T) {
 	server := startServer()
 
 	ctx := context.Background()
-	results, err := FetchUrlWithoutStatusCodeCheck(ctx, "http://localhost:9990/?fragment=oops", http.Header{})
+	results, err := fetchUrlWithoutStatusCodeCheck(ctx, "http://localhost:9990/?fragment=oops", http.Header{})
 
 	assert.Nil(t, err)
 	assert.Equal(t, 500, results.StatusCode)
