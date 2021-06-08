@@ -2,7 +2,6 @@ package multiplexer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,17 +9,6 @@ import (
 	"sync"
 	"time"
 )
-
-var NotFoundErr = errors.New("Not found")
-var Non2xxErr = errors.New("Status code not in 2xx range")
-
-type Result struct {
-	Url          string
-	Duration     time.Duration
-	HttpResponse *http.Response
-	Body         []byte
-	StatusCode   int
-}
 
 func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration) ([]*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
