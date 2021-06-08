@@ -67,6 +67,10 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.httpServer.Shutdown(ctx)
 }
 
+func (s *Server) Close() {
+	s.httpServer.Close()
+}
+
 // TODO this should probably be a tree structure for faster lookups
 func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
 	parts := strings.Split(path, "/")

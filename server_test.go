@@ -27,7 +27,7 @@ func TestBasicServer(t *testing.T) {
 			panic(err)
 		}
 	}()
-	defer viewProxyServer.Shutdown(context.TODO())
+	defer viewProxyServer.Close()
 
 	resp, err := http.Get("http://localhost:9998/hello/world")
 
@@ -71,6 +71,7 @@ func TestServerFromConfig(t *testing.T) {
 			panic(err)
 		}
 	}()
+	defer viewProxyServer.Close()
 
 	resp, err := http.Get("http://localhost:9998/hello/world")
 
@@ -98,6 +99,7 @@ func TestPassThroughEnabled(t *testing.T) {
 			panic(err)
 		}
 	}()
+	defer viewProxyServer.Close()
 
 	resp, err := http.Get("http://localhost:9995/hello/world")
 
@@ -125,6 +127,7 @@ func TestPassThroughDisabled(t *testing.T) {
 			panic(err)
 		}
 	}()
+	defer viewProxyServer.Close()
 
 	resp, err := http.Get("http://localhost:9993/hello/world")
 
