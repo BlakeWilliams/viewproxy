@@ -18,6 +18,7 @@ func main() {
 	server.Logger = buildLogger()
 	server.DefaultPageTitle = "Demo app"
 	server.IgnoreHeader("etag")
+	server.PassThrough = true
 
 	server.Get("/hello/:name", "my_layout", []string{
 		"header",
