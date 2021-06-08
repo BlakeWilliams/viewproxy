@@ -46,7 +46,6 @@ func TestFetchForwardsHeaders(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	fmt.Println(string(results[0].Body))
 	assert.Contains(t, string(results[0].Body), "X-Name:viewproxy", "Expected X-Name header to be present")
 
 	server.Close()
