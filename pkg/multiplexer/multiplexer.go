@@ -3,6 +3,7 @@ package multiplexer
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -70,10 +71,10 @@ func indexOfResult(urls []string, result *Result) int {
 	return -1
 }
 
-func fetchUrlWithoutStatusCodeCheck(ctx context.Context, url string, headers http.Header) (*Result, error) {
+func fetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
 	start := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	for name, values := range headers {
 		for _, value := range values {
 			req.Header.Add(name, value)
@@ -83,7 +84,12 @@ func fetchUrlWithoutStatusCodeCheck(ctx context.Context, url string, headers htt
 	if err != nil {
 		panic(err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
 
 	if err != nil {
 		return nil, err
@@ -91,7 +97,7 @@ func fetchUrlWithoutStatusCodeCheck(ctx context.Context, url string, headers htt
 
 	duration := time.Since(start)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
 		return nil, err
@@ -101,13 +107,13 @@ func fetchUrlWithoutStatusCodeCheck(ctx context.Context, url string, headers htt
 		Url:          url,
 		Duration:     duration,
 		HttpResponse: resp,
-		Body:         body,
+		Body:         responseBody,
 		StatusCode:   resp.StatusCode,
 	}, nil
 }
 
 func FetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
-	result, err := fetchUrlWithoutStatusCodeCheck(ctx, url, headers)
+	result, err := fetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
 
 	if err != nil {
 		return nil, err

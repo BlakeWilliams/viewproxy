@@ -29,16 +29,19 @@ func ProxyRequest(ctx context.Context, targetUrl string, req *http.Request) (*Re
 	}
 
 	if val := headers.Get("X-Forwarded-For"); val != "" {
-		newHeader := fmt.Sprintf("%s,%s", val, host)
+		newHeader := fmt.Sprintf("%s, %s", val, host)
 		headers.Set("X-Forwarded-For", newHeader)
 	} else {
 		headers.Set("X-Forwarded-For", host)
 	}
 
-	headers.Set("X-Forwarded-Proto", req.Proto)
+	// go strips the host header for some reason
+	// https://github.com/golang/go/blob/master/src/net/http/server.go#L999
+	headers.Set("Host", req.Host)
+	headers.Set("X-Forwarded-Host", req.Host)
 
 	// TODO handle timeouts or maybe rely on target?
-	result, err := fetchUrlWithoutStatusCodeCheck(context.TODO(), targetUrl, headers)
+	result, err := fetchUrlWithoutStatusCodeCheck(context.TODO(), req.Method, targetUrl, headers, req.Body)
 
 	if err != nil {
 		return nil, err
