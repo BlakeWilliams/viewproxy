@@ -43,6 +43,7 @@ func HeadersFromRequest(req *http.Request) http.Header {
 	// https://github.com/golang/go/blob/master/src/net/http/server.go#L999
 	newHeaders.Set("Host", req.Host)
 	newHeaders.Set("X-Forwarded-Host", req.Host)
+	newHeaders.Set("X-Forwarded-Proto", req.Proto)
 
 	return newHeaders
 }

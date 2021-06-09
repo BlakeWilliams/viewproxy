@@ -3,11 +3,13 @@ package viewproxy
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -166,6 +168,40 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	defer viewProxyServer.Close()
 
 	_, err := http.Get("http://localhost:9993/hello/world")
+
+	assert.Nil(t, err)
+
+	select {
+	case <-done:
+		server.Close()
+	}
+}
+
+func TestPassThroughPostRequest(t *testing.T) {
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+
+		body, err := io.ReadAll(r.Body)
+
+		assert.Nil(t, err)
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "hello", string(body))
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.PassThrough = true
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+	defer viewProxyServer.Close()
+
+	_, err := http.Post("http://localhost:9993/hello/world", "text/plain", strings.NewReader("hello"))
 
 	assert.Nil(t, err)
 

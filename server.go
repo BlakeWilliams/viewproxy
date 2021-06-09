@@ -139,7 +139,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r.Method,
 			targetUrl.String(),
 			multiplexer.HeadersFromRequest(r),
-			nil,
+			r.Body,
 		)
 
 		if err != nil {
@@ -168,6 +168,7 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 }
 
 func (s *Server) ListenAndServe() error {
+
 	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{

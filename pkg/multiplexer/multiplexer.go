@@ -75,15 +75,16 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
 	for name, values := range headers {
 		for _, value := range values {
 			req.Header.Add(name, value)
 		}
 	}
 
-	if err != nil {
-		panic(err)
-	}
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
