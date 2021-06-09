@@ -124,6 +124,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
 
+		targetUrl.RawQuery = r.URL.Query().Encode()
+
 		if err != nil {
 			s.handleProxyError(err, w)
 			return
