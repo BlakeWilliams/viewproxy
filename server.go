@@ -1,7 +1,6 @@
 package viewproxy
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -17,11 +16,11 @@ type Server struct {
 	Port             int
 	ProxyTimeout     time.Duration
 	routes           []Route
-	Target           string
+	target           string
 	Logger           *log.Logger
 	httpServer       *http.Server
 	DefaultPageTitle string
-	ignoreHeaders    map[string]struct{}
+	ignoreHeaders    []string
 	PassThrough      bool
 }
 
@@ -34,19 +33,26 @@ func NewServer(target string) *Server {
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
-		Target:           target,
-		ignoreHeaders:    make(map[string]struct{}, 0),
+		target:           target,
+		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
 	}
 }
 
 func (s *Server) Get(path string, layout string, fragments []string) {
-	route := newRoute(path, layout, fragments)
+	baseLayoutUrl := s.urlFromTarget(layout)
+	baseFragmentUrls := make([]string, len(fragments))
+
+	for i, fragment := range fragments {
+		baseFragmentUrls[i] = s.urlFromTarget(fragment)
+	}
+
+	route := newRoute(path, baseLayoutUrl, baseFragmentUrls)
 	s.routes = append(s.routes, *route)
 }
 
 func (s *Server) IgnoreHeader(name string) {
-	s.ignoreHeaders[strings.ToLower(name)] = setMember
+	s.ignoreHeaders = append(s.ignoreHeaders, name)
 }
 
 func (s *Server) LoadRouteConfig(filePath string) error {
@@ -91,50 +97,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
-		urls := make([]string, 0)
-
-		urls = append(urls, s.constructLayoutUrl(route.Layout, parameters))
-
-		for _, fragment := range route.fragments {
-			urls = append(urls, s.constructFragmentUrl(fragment, parameters))
-		}
-
-		results, err := multiplexer.Fetch(context.TODO(), urls, http.Header{}, s.ProxyTimeout)
+		results, err := multiplexer.Fetch(
+			context.TODO(),
+			route.fragmentsWithParameters(parameters),
+			http.Header{},
+			s.ProxyTimeout,
+		)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
 			s.Logger.Printf("Errored %v", err)
 		}
 
-		layoutHtml := results[0].Body
 		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
-
-		contentHtml := []byte("")
-		pageTitle := s.DefaultPageTitle
-
-		for name, values := range results[0].HttpResponse.Header {
-			if _, ok := s.ignoreHeaders[strings.ToLower(name)]; !ok {
-				for _, value := range values {
-					w.Header().Add(name, value)
-				}
-			}
-		}
-
 		for _, result := range results[1:] {
 			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
-			contentHtml = append(contentHtml, result.Body...)
-
-			if result.HttpResponse.Header.Get("X-View-Proxy-Title") != "" {
-				pageTitle = result.HttpResponse.Header.Get("X-View-Proxy-Title")
-			}
 		}
 
-		outputHtml := bytes.Replace(layoutHtml, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
-		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
-		w.Write(outputHtml)
+		resBuilder := newResponseBuilder(*s, w)
+		resBuilder.SetLayout(results[0])
+		resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders())
+		resBuilder.SetFragments(results[1:])
+		resBuilder.Write()
 	} else if s.PassThrough {
 		targetUrl, err := url.Parse(
-			fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(r.URL.String(), "/")),
+			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
 
 		if err != nil {
@@ -148,15 +135,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.handleProxyError(err, w)
 			return
 		}
-
-		for name, values := range result.HeadersWithoutProxyHeaders() {
-			w.Header()[name] = values
-		}
-
-		w.WriteHeader(result.StatusCode)
-		w.Write(result.Body)
-
 		s.Logger.Printf("Proxied %s in %v", result.Url, result.Duration)
+
+		resBuilder := newResponseBuilder(*s, w)
+		resBuilder.StatusCode = result.StatusCode
+		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders())
+		resBuilder.SetFragments([]*multiplexer.Result{result})
+		resBuilder.Write()
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)
@@ -186,43 +171,15 @@ func (s *Server) ListenAndServe() error {
 	return s.httpServer.ListenAndServe()
 }
 
-func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
+func (s *Server) urlFromTarget(fragment string) string {
 	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(layout, "/")),
-	)
-
-	// TODO this should not panic
-	if err != nil {
-		panic(err)
-	}
-
-	query := url.Values{}
-
-	for name, value := range parameters {
-		query.Add(name, value)
-	}
-
-	targetUrl.RawQuery = query.Encode()
-
-	return targetUrl.String()
-}
-
-func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.Target, "/"), strings.TrimLeft(fragment, "/")),
+		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
 	)
 
 	if err != nil {
+		// It should be okay to panic here, since this should only be called at boot time
 		panic(err)
 	}
-
-	query := url.Values{}
-
-	for name, value := range parameters {
-		query.Add(name, value)
-	}
-
-	targetUrl.RawQuery = query.Encode()
 
 	return targetUrl.String()
 }
