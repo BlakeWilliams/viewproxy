@@ -71,7 +71,7 @@ func indexOfResult(urls []string, result *Result) int {
 	return -1
 }
 
-func fetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
+func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -113,7 +113,7 @@ func fetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 }
 
 func FetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
-	result, err := fetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
+	result, err := FetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
 
 	if err != nil {
 		return nil, err

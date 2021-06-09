@@ -100,13 +100,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		results, err := multiplexer.Fetch(
 			context.TODO(),
 			route.fragmentsWithParameters(parameters),
-			http.Header{},
+			multiplexer.HeadersFromRequest(r),
 			s.ProxyTimeout,
 		)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
 			s.Logger.Printf("Errored %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("500 internal server error"))
+			return
 		}
 
 		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
@@ -131,7 +134,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		result, err := multiplexer.ProxyRequest(context.TODO(), targetUrl.String(), r)
+		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(
+			context.TODO(),
+			r.Method,
+			targetUrl.String(),
+			multiplexer.HeadersFromRequest(r),
+			nil,
+		)
 
 		if err != nil {
 			s.handleProxyError(err, w)
