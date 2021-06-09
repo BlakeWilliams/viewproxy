@@ -57,7 +57,6 @@ func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 
 		rb.body = outputHtml
 	}
-
 }
 
 func (rb *responseBuilder) Write() {

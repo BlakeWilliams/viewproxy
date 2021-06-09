@@ -171,47 +171,6 @@ func (s *Server) ListenAndServe() error {
 	return s.httpServer.ListenAndServe()
 }
 
-func (s *Server) constructLayoutUrl(layout string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(layout, "/")),
-	)
-
-	// TODO this should not panic
-	if err != nil {
-		panic(err)
-	}
-
-	query := url.Values{}
-
-	for name, value := range parameters {
-		query.Add(name, value)
-	}
-
-	targetUrl.RawQuery = query.Encode()
-
-	return targetUrl.String()
-}
-
-func (s *Server) constructFragmentUrl(fragment string, parameters map[string]string) string {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
-	)
-
-	if err != nil {
-		panic(err)
-	}
-
-	query := url.Values{}
-
-	for name, value := range parameters {
-		query.Add(name, value)
-	}
-
-	targetUrl.RawQuery = query.Encode()
-
-	return targetUrl.String()
-}
-
 func (s *Server) urlFromTarget(fragment string) string {
 	targetUrl, err := url.Parse(
 		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
