@@ -3,12 +3,14 @@ package viewproxy
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBasicServer(t *testing.T) {
@@ -139,6 +141,76 @@ func TestPassThroughDisabled(t *testing.T) {
 
 	assert.Equal(t, 404, resp.StatusCode)
 	assert.Equal(t, "404 not found", string(body))
+}
+
+func TestPassThroughSetsCorrectHeaders(t *testing.T) {
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+
+		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
+		assert.Equal(t, "::1", r.Header.Get("X-Forwarded-For"))
+		assert.Equal(t, "localhost:9993", r.Header.Get("X-Forwarded-Host"))
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.PassThrough = true
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+	defer viewProxyServer.Close()
+
+	_, err := http.Get("http://localhost:9993/hello/world")
+
+	assert.Nil(t, err)
+
+	select {
+	case <-done:
+		server.Close()
+	}
+}
+
+func TestFragmentSetsCorrectHeaders(t *testing.T) {
+	layoutDone := make(chan bool)
+	fragmentDone := make(chan bool)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/foo" {
+			defer close(layoutDone)
+		} else if r.URL.Path == "/bar" {
+			defer close(fragmentDone)
+		}
+		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
+		assert.Equal(t, "::1", r.Header.Get("X-Forwarded-For"))
+		assert.Equal(t, "localhost:9993", r.Header.Get("X-Forwarded-Host"))
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.Get("/hello/:name", "/foo", []string{"/bar"})
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+	defer viewProxyServer.Close()
+
+	_, err := http.Get("http://localhost:9993/hello/world")
+
+	assert.Nil(t, err)
+
+	<-layoutDone
+	<-fragmentDone
+
+	server.Close()
 }
 
 func startTargetServer() *http.Server {
