@@ -28,7 +28,7 @@ type Server struct {
 	// When set, two headers are sent to the target URL for fragment and layout
 	// requests. The `X-Authorization-Timestamp` header, which is a timestamp
 	// generated at the start of the request, and `X-Authorization`, which is a
-	// hex encoded HMAC of "urlWithQueryParams,timestamp`.
+	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
 	HmacSecret string
 }
 
