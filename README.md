@@ -13,15 +13,13 @@ To use `viewproxy`:
 ```go
 import "github.com/blakewilliams/viewproxy"
 
-// Create a new Server Instance
-server := &viewproxy.Server{
-	Port:         3005,
-	ProxyTimeout: time.Duration(5)*time.Second,
-	// viewproxy will hit this URL, forwarding named URL parameters as query params.
-	// The `fragment` query param is the name of the requested fragment to render.
-	Target:       "http://localhost:3000/_view_fragments",
-	Logger:       log.Default,
-}
+// Create and configure a new Server Instance
+server := viewproxy.NewServer(target)
+server.Port = 3005
+server.ProxyTimeout = time.Duration(5) * time.Second
+server.DefaultPageTitle = "Demo app"
+server.IgnoreHeader("etag")
+server.PassThrough = true
 
 // Define a route with a :name parameter that will be forwarded to the target host.
 // This will make a layout request and 3 fragment requests, one for the header, hello, and footer.

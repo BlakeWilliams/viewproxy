@@ -100,13 +100,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		results, err := multiplexer.Fetch(
 			context.TODO(),
 			route.fragmentsWithParameters(parameters),
-			http.Header{},
+			multiplexer.HeadersFromRequest(r),
 			s.ProxyTimeout,
 		)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
 			s.Logger.Printf("Errored %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("500 internal server error"))
+			return
 		}
 
 		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
@@ -124,12 +127,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
 
+		targetUrl.RawQuery = r.URL.Query().Encode()
+
 		if err != nil {
 			s.handleProxyError(err, w)
 			return
 		}
 
-		result, err := multiplexer.ProxyRequest(context.TODO(), targetUrl.String(), r)
+		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(
+			context.TODO(),
+			r.Method,
+			targetUrl.String(),
+			multiplexer.HeadersFromRequest(r),
+			r.Body,
+		)
 
 		if err != nil {
 			s.handleProxyError(err, w)
@@ -157,6 +168,7 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 }
 
 func (s *Server) ListenAndServe() error {
+
 	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{
