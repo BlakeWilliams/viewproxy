@@ -2,16 +2,20 @@ package multiplexer
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sort"
 	"sync"
 	"time"
 )
 
-func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration) ([]*Result, error) {
+func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration, hmacSecret string) ([]*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -23,7 +27,13 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 		wg.Add(1)
 		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
-			result, err := FetchUrl(ctx, url, headers)
+
+			headersForRequest := headers
+			if hmacSecret != "" {
+				headersForRequest = headersWithHmac(headers, hmacSecret, url)
+			}
+
+			result, err := FetchUrl(ctx, url, headersForRequest)
 
 			if err != nil {
 				errCh <- err
@@ -58,6 +68,35 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 		return results, nil
 	case <-ctx.Done():
 		return make([]*Result, 0), ctx.Err()
+	}
+}
+
+func headersWithHmac(headers http.Header, secret string, url string) http.Header {
+	newHeaders := http.Header{}
+	for name, value := range headers {
+		newHeaders[name] = value
+	}
+
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(
+		[]byte(fmt.Sprintf("%s,%s", pathFromFullUrl(url), timestamp)),
+	)
+
+	newHeaders.Set("Authorization", hex.EncodeToString(mac.Sum(nil)))
+	newHeaders.Set("X-Authorization-Time", timestamp)
+
+	return newHeaders
+}
+
+func pathFromFullUrl(fullUrl string) string {
+	targetUrl, _ := url.Parse(fullUrl)
+
+	if targetUrl.RawQuery != "" {
+		return fmt.Sprintf("%s?%s", targetUrl.Path, targetUrl.RawQuery)
+	} else {
+		return targetUrl.Path
 	}
 }
 
