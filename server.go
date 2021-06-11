@@ -34,6 +34,14 @@ type Server struct {
 	DefaultPageTitle string
 	ignoreHeaders    []string
 	PassThrough      bool
+	// Sets the secret used to generate an HMAC that can be used by the target
+	// server to validate that a request came from viewproxy.
+	//
+	// When set, two headers are sent to the target URL for fragment and layout
+	// requests. The `X-Authorization-Timestamp` header, which is a timestamp
+	// generated at the start of the request, and `X-Authorization`, which is a
+	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
+	HmacSecret string
 }
 
 var setMember struct{}
@@ -114,6 +122,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			route.fragmentsWithParameters(parameters),
 			multiplexer.HeadersFromRequest(r),
 			s.ProxyTimeout,
+			s.HmacSecret,
 		)
 
 		if err != nil {

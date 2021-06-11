@@ -16,7 +16,7 @@ func TestFetchReturnsMultipleResults(t *testing.T) {
 	server := startServer()
 
 	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
-	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout)
+	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout, "")
 
 	assert.Nil(t, err)
 
@@ -42,7 +42,7 @@ func TestFetchForwardsHeaders(t *testing.T) {
 	}
 
 	urls := []string{"http://localhost:9990?fragment=echo_headers"}
-	results, err := Fetch(context.TODO(), urls, headers, defaultTimeout)
+	results, err := Fetch(context.TODO(), urls, headers, defaultTimeout, "")
 
 	assert.Nil(t, err)
 
@@ -55,7 +55,7 @@ func TestFetch404ReturnsError(t *testing.T) {
 	server := startServer()
 
 	urls := []string{"http://localhost:9990/wowomg"}
-	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout)
+	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout, "")
 
 	assert.ErrorIs(t, err, NotFoundErr)
 	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: Not found")
@@ -70,7 +70,7 @@ func TestFetch500ReturnsError(t *testing.T) {
 
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
 	ctx := context.Background()
-	results, err := Fetch(ctx, urls, http.Header{}, defaultTimeout)
+	results, err := Fetch(ctx, urls, http.Header{}, defaultTimeout, "")
 
 	duration := time.Since(start)
 
@@ -87,7 +87,7 @@ func TestFetchTimeout(t *testing.T) {
 	start := time.Now()
 
 	urls := []string{"http://localhost:9990?fragment=slow"}
-	_, err := Fetch(context.Background(), urls, http.Header{}, time.Duration(100)*time.Millisecond)
+	_, err := Fetch(context.Background(), urls, http.Header{}, time.Duration(100)*time.Millisecond, "")
 	duration := time.Since(start)
 
 	assert.EqualError(t, err, "context deadline exceeded")

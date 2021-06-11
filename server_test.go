@@ -2,6 +2,9 @@ package viewproxy
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -209,6 +212,54 @@ func TestPassThroughPostRequest(t *testing.T) {
 	case <-done:
 		server.Close()
 	}
+}
+
+func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
+	done := make(chan struct{})
+	secret := "6ccd9547b7042e0f1101ce68931d6b2c"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+
+		time := r.Header.Get("X-Authorization-Time")
+		assert.NotEqual(t, "", time, "Expected X-Authorization-Time header to be present")
+
+		key := fmt.Sprintf("%s?%s,%s", r.URL.Path, r.URL.RawQuery, time)
+
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(
+			[]byte(key),
+		)
+
+		authorization := r.Header.Get("Authorization")
+		assert.NotEqual(t, "", authorization, "Expected Authorization header to be present")
+
+		expected := hex.EncodeToString(mac.Sum(nil))
+
+		assert.Equal(t, expected, authorization)
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.Get("/hello/:name", "/foo", []string{})
+	viewProxyServer.HmacSecret = secret
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+	defer viewProxyServer.Close()
+
+	_, err := http.Get("http://localhost:9993/hello/world")
+	assert.Nil(t, err)
+
+	<-done
+
+	server.Close()
 }
 
 func TestFragmentSetsCorrectHeaders(t *testing.T) {
