@@ -161,12 +161,12 @@ func FetchUrl(ctx context.Context, url string, headers http.Header) (*Result, er
 
 	// 404 is a failure, we should cancel the other requests
 	if result.StatusCode == 404 {
-		return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
+		return nil, fmt.Errorf("URL %s: %w", url, ErrNotFound)
 	}
 
 	// Any non 2xx status code should be considered an error
 	if !(result.StatusCode >= 200 && result.StatusCode <= 299) {
-		return nil, fmt.Errorf("Status %d for URL %s: %w", result.StatusCode, url, Non2xxErr)
+		return nil, fmt.Errorf("status %d for URL %s: %w", result.StatusCode, url, ErrNon2xx)
 	}
 
 	return result, nil

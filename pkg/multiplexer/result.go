@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-var NotFoundErr = errors.New("Not found")
-var Non2xxErr = errors.New("Status code not in 2xx range")
+var ErrNotFound = errors.New("not found")
+var ErrNon2xx = errors.New("status code not in 2xx range")
 
 type Result struct {
 	Url          string

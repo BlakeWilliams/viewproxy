@@ -43,6 +43,7 @@ func TestBasicServer(t *testing.T) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 	expected := "<html><body>hello world</body></html>"
 
 	assert.Equal(t, expected, string(body))
@@ -87,6 +88,7 @@ func TestServerFromConfig(t *testing.T) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 	expected := "<html><body>hello world</body></html>"
 
 	assert.Equal(t, expected, string(body))
@@ -115,6 +117,7 @@ func TestPassThroughEnabled(t *testing.T) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
 	assert.Equal(t, 500, resp.StatusCode)
 	assert.Equal(t, "Something went wrong", string(body))
@@ -143,6 +146,7 @@ func TestPassThroughDisabled(t *testing.T) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
 	assert.Equal(t, 404, resp.StatusCode)
 	assert.Equal(t, "404 not found", string(body))
@@ -174,10 +178,8 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	select {
-	case <-done:
-		server.Close()
-	}
+	<-done
+	server.Close()
 }
 
 func TestPassThroughPostRequest(t *testing.T) {
@@ -208,10 +210,8 @@ func TestPassThroughPostRequest(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	select {
-	case <-done:
-		server.Close()
-	}
+	<-done
+	server.Close()
 }
 
 func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {

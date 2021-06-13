@@ -38,7 +38,7 @@ func TestFetchReturnsMultipleResults(t *testing.T) {
 func TestFetchForwardsHeaders(t *testing.T) {
 	server := startServer()
 	headers := map[string][]string{
-		"X-Name": []string{"viewproxy"},
+		"X-Name": {"viewproxy"},
 	}
 
 	urls := []string{"http://localhost:9990?fragment=echo_headers"}
@@ -57,8 +57,8 @@ func TestFetch404ReturnsError(t *testing.T) {
 	urls := []string{"http://localhost:9990/wowomg"}
 	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout, "")
 
-	assert.ErrorIs(t, err, NotFoundErr)
-	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: Not found")
+	assert.ErrorIs(t, err, ErrNotFound)
+	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: not found")
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
@@ -75,8 +75,8 @@ func TestFetch500ReturnsError(t *testing.T) {
 	duration := time.Since(start)
 
 	assert.Less(t, duration, time.Duration(3)*time.Second)
-	assert.ErrorIs(t, err, Non2xxErr)
-	assert.EqualError(t, err, "Status 500 for URL http://localhost:9990/?fragment=oops: Status code not in 2xx range")
+	assert.ErrorIs(t, err, ErrNon2xx)
+	assert.EqualError(t, err, "status 500 for URL http://localhost:9990/?fragment=oops: status code not in 2xx range")
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
