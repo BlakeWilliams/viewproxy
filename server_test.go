@@ -1,7 +1,6 @@
 package viewproxy
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,9 +19,10 @@ import (
 
 func TestBasicServer(t *testing.T) {
 	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
 
-	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
@@ -53,7 +53,8 @@ func TestBasicServer(t *testing.T) {
 
 func TestServerFromConfig(t *testing.T) {
 	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
 
 	file, err := ioutil.TempFile(os.TempDir(), "config.json")
 	if err != nil {
@@ -69,7 +70,7 @@ func TestServerFromConfig(t *testing.T) {
 
 	file.Close()
 
-	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
@@ -96,9 +97,10 @@ func TestServerFromConfig(t *testing.T) {
 
 func TestPassThroughEnabled(t *testing.T) {
 	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
 
-	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Port = 9995
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.PassThrough = true
@@ -125,9 +127,10 @@ func TestPassThroughEnabled(t *testing.T) {
 
 func TestPassThroughDisabled(t *testing.T) {
 	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
 
-	viewProxyServer := NewServer("http://localhost:9994")
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Port = 9993
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.PassThrough = false
@@ -300,8 +303,8 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	server.Close()
 }
 
-func startTargetServer() *http.Server {
-	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func startTargetServer() *httptest.Server {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
 		w.Header().Set("EtAg", "1234")
@@ -326,14 +329,7 @@ func startTargetServer() *http.Server {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
 		}
-	})
-
-	testServer := &http.Server{Addr: ":9994", Handler: instance}
-	go func() {
-		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
+	}))
 
 	return testServer
 }
