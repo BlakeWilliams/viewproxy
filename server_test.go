@@ -354,6 +354,27 @@ func TestSupportsGzip(t *testing.T) {
 	server.Close()
 }
 
+func TestPrerequestCallback(t *testing.T) {
+	done := make(chan struct{})
+
+	server := NewServer("http://fake.net")
+	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+		w.Header().Set("x-viewproxy", "true")
+		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+	}
+
+	fakeWriter := httptest.NewRecorder()
+	fakeRequest := httptest.NewRequest("GET", "/", nil)
+	fakeRequest.RemoteAddr = "192.168.1.1"
+
+	server.ServeHTTP(fakeWriter, fakeRequest)
+
+	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+
+	<-done
+}
+
 func startTargetServer() *http.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
