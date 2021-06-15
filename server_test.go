@@ -1,6 +1,8 @@
 package viewproxy
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -296,6 +298,58 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 
 	<-layoutDone
 	<-fragmentDone
+
+	server.Close()
+}
+
+func TestSupportsGzip(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var b bytes.Buffer
+
+		gzWriter := gzip.NewWriter(&b)
+
+		if r.URL.Path == "/layout" {
+			gzWriter.Write([]byte("<body>{{{VIEW_PROXY_CONTENT}}}</body>"))
+		} else if r.URL.Path == "/fragment" {
+			gzWriter.Write([]byte("wow gzipped!"))
+		} else {
+			panic("Unexpected URL")
+		}
+
+		gzWriter.Close()
+
+		w.Header().Set("Content-Encoding", "gzip")
+		w.WriteHeader(http.StatusOK)
+		w.Write(b.Bytes())
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	viewProxyServer.Port = 9993
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.Get("/hello/:name", "/layout", []string{"/fragment"})
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+	defer viewProxyServer.Close()
+
+	req, err := http.NewRequest(http.MethodGet, "http://localhost:9993/hello/world", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	assert.Nil(t, err)
+
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := http.DefaultClient.Do(req)
+	assert.Nil(t, err)
+
+	gzReader, err := gzip.NewReader(resp.Body)
+	assert.Nil(t, err)
+
+	body, err := ioutil.ReadAll(gzReader)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "<body>wow gzipped!</body>", string(body))
 
 	server.Close()
 }
