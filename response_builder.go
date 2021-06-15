@@ -2,8 +2,10 @@ package viewproxy
 
 import (
 	"bytes"
-	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
+	"compress/gzip"
 	"net/http"
+
+	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
 type responseBuilder struct {
@@ -61,5 +63,23 @@ func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 
 func (rb *responseBuilder) Write() {
 	rb.writer.WriteHeader(rb.StatusCode)
-	rb.writer.Write(rb.body)
+
+	if rb.writer.Header().Get("Content-Encoding") == "gzip" {
+		var b bytes.Buffer
+		gzipWriter := gzip.NewWriter(&b)
+
+		_, err := gzipWriter.Write(rb.body)
+		if err != nil {
+			rb.server.Logger.Printf("Could not write to gzip buffer: %s", err)
+		}
+
+		gzipWriter.Close()
+		if err != nil {
+			rb.server.Logger.Printf("Could not closeto gzip buffer: %s", err)
+		}
+
+		rb.writer.Write(b.Bytes())
+	} else {
+		rb.writer.Write(rb.body)
+	}
 }

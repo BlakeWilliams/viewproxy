@@ -1,6 +1,7 @@
 package multiplexer
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -137,7 +138,19 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 
 	duration := time.Since(start)
 
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	var responseBody []byte
+
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer gzipReader.Close()
+
+		responseBody, err = ioutil.ReadAll(gzipReader)
+	} else {
+		responseBody, err = ioutil.ReadAll(resp.Body)
+	}
 
 	if err != nil {
 		return nil, err
