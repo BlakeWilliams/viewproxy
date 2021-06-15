@@ -44,8 +44,6 @@ type Server struct {
 	HmacSecret string
 }
 
-var setMember struct{}
-
 func NewServer(target string) *Server {
 	return &Server{
 		DefaultPageTitle: "viewproxy",
@@ -185,7 +183,6 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 	s.Logger.Printf("Pass through error: %v", err)
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte("Internal Server Error"))
-	return
 }
 
 func (s *Server) ListenAndServe() error {
