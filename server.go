@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
+	"github.com/blakewilliams/viewproxy/pkg/tracing"
 )
 
 type logger interface {
@@ -41,7 +42,8 @@ type Server struct {
 	// requests. The `X-Authorization-Timestamp` header, which is a timestamp
 	// generated at the start of the request, and `X-Authorization`, which is a
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
-	HmacSecret string
+	HmacSecret    string
+	tracingConfig tracing.TracingConfig
 }
 
 var setMember struct{}
@@ -189,6 +191,11 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 }
 
 func (s *Server) ListenAndServe() error {
+	//TODO: how/when to shut down tracer
+	_, err := tracing.Instrument(s.tracingConfig, s.Logger)
+	if err != nil {
+		log.Printf("Error instrumenting tracing: %v", err)
+	}
 
 	s.IgnoreHeader("Content-Length")
 

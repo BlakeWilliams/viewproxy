@@ -14,9 +14,18 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration, hmacSecret string) ([]*Result, error) {
+	tracer := otel.Tracer("multiplexer")
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "fetch_urls")
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -28,13 +37,20 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 		wg.Add(1)
 		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
+			var span trace.Span
+			ctx, span = tracer.Start(ctx, "fetch_url")
+			span.SetAttributes(attribute.KeyValue{
+				Key:   "url",
+				Value: attribute.StringValue(url),
+			})
+			defer span.End()
 
 			headersForRequest := headers
 			if hmacSecret != "" {
 				headersForRequest = headersWithHmac(headers, hmacSecret, url)
 			}
 
-			result, err := FetchUrl(ctx, url, headersForRequest)
+			result, err := fetchUrl(ctx, url, headersForRequest)
 
 			if err != nil {
 				errCh <- err
@@ -165,7 +181,7 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}, nil
 }
 
-func FetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
+func fetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
 	result, err := FetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
 
 	if err != nil {

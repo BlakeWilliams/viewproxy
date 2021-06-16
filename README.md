@@ -47,6 +47,14 @@ To run `viewproxy`, run `go build ./cmd/demo && ./demo`
 
 `viewproxy` is a simple service designed to sit between a browser request and a web application. It is used to break pages down into fragments that can be rendered in parallel for faster response times.
 
-- `viewproxy` is not coupled to a specific application framework, but *is* being driven by close integration with Rails applications.  
+- `viewproxy` is not coupled to a specific application framework, but _is_ being driven by close integration with Rails applications.
 - `viewproxy` should rely on Rails' (or other target application framework) strengths when possible.
 - `viewproxy` itself and its client API's should focus on developer happiness and productivity.
+
+## Development
+
+Run the tests:
+
+```
+go test
+```
