@@ -74,7 +74,7 @@ func TestServerFromConfig(t *testing.T) {
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.LoadRouteConfig(file.Name())
+	viewProxyServer.LoadRoutesFromFile(file.Name())
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)

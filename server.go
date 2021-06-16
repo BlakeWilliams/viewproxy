@@ -76,7 +76,7 @@ func (s *Server) IgnoreHeader(name string) {
 	s.ignoreHeaders = append(s.ignoreHeaders, name)
 }
 
-func (s *Server) LoadRouteConfig(filePath string) error {
+func (s *Server) LoadRoutesFromFile(filePath string) error {
 	routeEntries, err := readConfigFile(filePath)
 	if err != nil {
 		return err
