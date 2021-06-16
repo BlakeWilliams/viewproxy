@@ -43,10 +43,33 @@ server.ListenAndServe()
 
 To run `viewproxy`, run `go build ./cmd/demo && ./demo`
 
+## Tracing with Open Telemetry
+
+You can use tracing to learn which fragment(s) are slowest for a given page, so you know where to optimize.
+
+To set up distributed tracing via [Open Telemetry](https://opentelemetry.io):
+
+```go
+viewProxyServer.tracingConfig = tracing.TracingConfig{
+	TracingEnabled:  true,
+	ServiceName:     "my-viewproxy-service",
+	TracingEndpoint: "localhost:8360",
+	TracingInsecure: false,
+}
+```
+
 ## Philosophy
 
 `viewproxy` is a simple service designed to sit between a browser request and a web application. It is used to break pages down into fragments that can be rendered in parallel for faster response times.
 
-- `viewproxy` is not coupled to a specific application framework, but *is* being driven by close integration with Rails applications.  
+- `viewproxy` is not coupled to a specific application framework, but _is_ being driven by close integration with Rails applications.
 - `viewproxy` should rely on Rails' (or other target application framework) strengths when possible.
 - `viewproxy` itself and its client API's should focus on developer happiness and productivity.
+
+## Development
+
+Run the tests:
+
+```
+go test ./...
+```
