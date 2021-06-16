@@ -11,6 +11,8 @@ import (
 
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/tracing"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type logger interface {
@@ -58,6 +60,7 @@ func NewServer(target string) *Server {
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
+		tracingConfig:    tracing.TracingConfig{TracingEnabled: false},
 	}
 }
 
@@ -114,13 +117,27 @@ func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
+	if err != nil {
+		log.Printf("Error instrumenting tracing: %v", err)
+	}
+
+	defer shutdownTracing()
+
+	tracer := otel.Tracer("server")
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "ServeHTTP")
+	defer span.End()
+
 	route, parameters := s.matchingRoute(r.URL.Path)
 
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
 
 		results, err := multiplexer.Fetch(
-			context.TODO(),
+			ctx,
 			route.fragmentsWithParameters(parameters),
 			multiplexer.HeadersFromRequest(r),
 			s.ProxyTimeout,
@@ -158,7 +175,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(
-			context.TODO(),
+			ctx,
 			r.Method,
 			targetUrl.String(),
 			multiplexer.HeadersFromRequest(r),
@@ -191,12 +208,6 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 }
 
 func (s *Server) ListenAndServe() error {
-	//TODO: how/when to shut down tracer
-	_, err := tracing.Instrument(s.tracingConfig, s.Logger)
-	if err != nil {
-		log.Printf("Error instrumenting tracing: %v", err)
-	}
-
 	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{
