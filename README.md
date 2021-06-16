@@ -71,5 +71,5 @@ viewProxyServer.tracingConfig = tracing.TracingConfig{
 Run the tests:
 
 ```
-go test
+go test ./...
 ```
