@@ -46,9 +46,8 @@ type Server struct {
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
 	HmacSecret string
 	// A function that is called before the request is handled by viewproxy.
-	PreRequest func(w http.ResponseWriter, r *http.Request)
-  tracingConfig tracing.TracingConfig
-
+	PreRequest    func(w http.ResponseWriter, r *http.Request)
+	tracingConfig tracing.TracingConfig
 }
 
 func NewServer(target string) *Server {
