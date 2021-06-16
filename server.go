@@ -44,11 +44,12 @@ type Server struct {
 	// requests. The `X-Authorization-Timestamp` header, which is a timestamp
 	// generated at the start of the request, and `X-Authorization`, which is a
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
-	HmacSecret    string
-	tracingConfig tracing.TracingConfig
-}
+	HmacSecret string
+	// A function that is called before the request is handled by viewproxy.
+	PreRequest func(w http.ResponseWriter, r *http.Request)
+  tracingConfig tracing.TracingConfig
 
-var setMember struct{}
+}
 
 func NewServer(target string) *Server {
 	return &Server{
@@ -57,6 +58,7 @@ func NewServer(target string) *Server {
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
+		PreRequest:       func(http.ResponseWriter, *http.Request) {},
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
@@ -80,12 +82,25 @@ func (s *Server) IgnoreHeader(name string) {
 	s.ignoreHeaders = append(s.ignoreHeaders, name)
 }
 
-func (s *Server) LoadRouteConfig(filePath string) error {
+func (s *Server) LoadRoutesFromFile(filePath string) error {
 	routeEntries, err := readConfigFile(filePath)
 	if err != nil {
 		return err
 	}
 
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) LoadRoutesFromJSON(routesJson string) error {
+	routeEntries, err := loadJsonConfig([]byte(routesJson))
+	if err != nil {
+		return err
+	}
+
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
 		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
 		s.Get(routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
@@ -131,6 +146,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span = tracer.Start(ctx, "ServeHTTP")
 	defer span.End()
 
+	s.PreRequest(w, r)
 	route, parameters := s.matchingRoute(r.URL.Path)
 
 	if route != nil {
@@ -204,7 +220,6 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 	s.Logger.Printf("Pass through error: %v", err)
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte("Internal Server Error"))
-	return
 }
 
 func (s *Server) ListenAndServe() error {

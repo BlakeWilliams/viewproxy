@@ -74,7 +74,7 @@ func TestServerFromConfig(t *testing.T) {
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.LoadRouteConfig(file.Name())
+	viewProxyServer.LoadRoutesFromFile(file.Name())
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -352,6 +352,27 @@ func TestSupportsGzip(t *testing.T) {
 	assert.Equal(t, "<body>wow gzipped!</body>", string(body))
 
 	server.Close()
+}
+
+func TestPrerequestCallback(t *testing.T) {
+	done := make(chan struct{})
+
+	server := NewServer("http://fake.net")
+	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+		w.Header().Set("x-viewproxy", "true")
+		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+	}
+
+	fakeWriter := httptest.NewRecorder()
+	fakeRequest := httptest.NewRequest("GET", "/", nil)
+	fakeRequest.RemoteAddr = "192.168.1.1"
+
+	server.ServeHTTP(fakeWriter, fakeRequest)
+
+	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+
+	<-done
 }
 
 func startTargetServer() *http.Server {
