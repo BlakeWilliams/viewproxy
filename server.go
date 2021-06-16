@@ -82,6 +82,19 @@ func (s *Server) LoadRouteConfig(filePath string) error {
 		return err
 	}
 
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) LoadRoutesFromJSON(routesJson string) error {
+	routeEntries, err := loadJsonConfig([]byte(routesJson))
+	if err != nil {
+		return err
+	}
+
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
 		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
 		s.Get(routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)

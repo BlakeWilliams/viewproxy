@@ -25,11 +25,13 @@ func readConfigFile(filePath string) ([]configRouteEntry, error) {
 		return nil, err
 	}
 
+	return loadJsonConfig(routesJson)
+}
+
+func loadJsonConfig(routesJson []byte) ([]configRouteEntry, error) {
 	var routeEntries []configRouteEntry
 
-	err = json.Unmarshal(routesJson, &routeEntries)
-
-	if err != nil {
+	if err := json.Unmarshal(routesJson, &routeEntries); err != nil {
 		return nil, err
 	}
 
