@@ -133,13 +133,6 @@ func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
-	if err != nil {
-		log.Printf("Error instrumenting tracing: %v", err)
-	}
-
-	defer shutdownTracing()
-
 	tracer := otel.Tracer("server")
 	var span trace.Span
 	ctx, span = tracer.Start(ctx, "ServeHTTP")
@@ -222,6 +215,13 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 }
 
 func (s *Server) ListenAndServe() error {
+	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
+	if err != nil {
+		log.Printf("Error instrumenting tracing: %v", err)
+	}
+
+	defer shutdownTracing()
+
 	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{
@@ -233,6 +233,7 @@ func (s *Server) ListenAndServe() error {
 	}
 
 	s.Logger.Printf("Listening on port %d\n", s.Port)
+
 	return s.httpServer.ListenAndServe()
 }
 
