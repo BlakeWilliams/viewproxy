@@ -61,7 +61,7 @@ func NewServer(target string) *Server {
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
-		tracingConfig:    tracing.TracingConfig{TracingEnabled: false},
+		tracingConfig:    tracing.TracingConfig{Enabled: false},
 	}
 }
 
@@ -97,6 +97,13 @@ func (s *Server) LoadRoutesFromJSON(routesJson string) error {
 	}
 
 	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) ConfigureTracing(endpoint string, serviceName string, insecure bool) {
+	s.tracingConfig.Enabled = true
+	s.tracingConfig.Endpoint = endpoint
+	s.tracingConfig.ServiceName = serviceName
+	s.tracingConfig.Insecure = insecure
 }
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {

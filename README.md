@@ -50,11 +50,10 @@ You can use tracing to learn which fragment(s) are slowest for a given page, so 
 To set up distributed tracing via [Open Telemetry](https://opentelemetry.io):
 
 ```go
-viewProxyServer.tracingConfig = tracing.TracingConfig{
-	TracingEnabled:  true,
-	ServiceName:     "my-viewproxy-service",
-	TracingEndpoint: "localhost:8360",
-	TracingInsecure: false,
+viewProxyServer.ConfigureTracing(
+	"localhost:8360", // endpoint
+	"my-viewproxy-service", // service name
+	false, // insecure mode?
 }
 ```
 
