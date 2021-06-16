@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/internal/tracing"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
-	"github.com/blakewilliams/viewproxy/pkg/tracing"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
