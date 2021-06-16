@@ -76,12 +76,25 @@ func (s *Server) IgnoreHeader(name string) {
 	s.ignoreHeaders = append(s.ignoreHeaders, name)
 }
 
-func (s *Server) LoadRouteConfig(filePath string) error {
+func (s *Server) LoadRoutesFromFile(filePath string) error {
 	routeEntries, err := readConfigFile(filePath)
 	if err != nil {
 		return err
 	}
 
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) LoadRoutesFromJSON(routesJson string) error {
+	routeEntries, err := loadJsonConfig([]byte(routesJson))
+	if err != nil {
+		return err
+	}
+
+	return s.loadRoutes(routeEntries)
+}
+
+func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
 		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
 		s.Get(routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
