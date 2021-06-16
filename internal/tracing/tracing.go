@@ -15,10 +15,10 @@ import (
 )
 
 type TracingConfig struct {
-	TracingEnabled  bool
-	TracingEndpoint string
-	TracingInsecure bool
-	ServiceName     string
+	Enabled     bool
+	Endpoint    string
+	Insecure    bool
+	ServiceName string
 }
 
 type logger interface {
@@ -37,11 +37,11 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 	eh := ErrorHandler{logger: l}
 	otel.SetErrorHandler(eh)
 
-	if config.TracingEnabled {
+	if config.Enabled {
 		ctx := context.Background()
 
-		otlpOptions := []otlpgrpc.Option{otlpgrpc.WithEndpoint(config.TracingEndpoint)}
-		if config.TracingInsecure {
+		otlpOptions := []otlpgrpc.Option{otlpgrpc.WithEndpoint(config.Endpoint)}
+		if config.Insecure {
 			otlpOptions = append(otlpOptions, otlpgrpc.WithInsecure())
 		}
 
