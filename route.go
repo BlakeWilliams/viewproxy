@@ -1,17 +1,16 @@
 package viewproxy
 
 import (
-	"net/url"
 	"strings"
 )
 
 type Route struct {
 	Parts     []string
-	Layout    string
-	fragments []string
+	Layout    *Fragment
+	fragments []*Fragment
 }
 
-func newRoute(path string, layout string, fragments []string) *Route {
+func newRoute(path string, layout *Fragment, fragments []*Fragment) *Route {
 	return &Route{
 		Parts:     strings.Split(path, "/"),
 		Layout:    layout,
@@ -46,26 +45,12 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) fragmentsWithParameters(parameters map[string]string) []string {
-	query := url.Values{}
-	for name, value := range parameters {
-		query.Add(name, value)
-	}
-
-	urls := make([]string, len(r.fragments)+1)
-	urls[0] = fragmentToUrl(r.Layout, query)
+func (r *Route) FragmentsToRequest() []*Fragment {
+	fragments := make([]*Fragment, len(r.fragments)+1)
+	fragments[0] = r.Layout
 
 	for i, fragment := range r.fragments {
-		urls[i+1] = fragmentToUrl(fragment, query)
+		fragments[i+1] = fragment
 	}
-
-	return urls
-}
-
-func fragmentToUrl(fragment string, parameters url.Values) string {
-	// This is already parsed before constructing the url in server.go, so we ignore errors
-	targetUrl, _ := url.Parse(fragment)
-	targetUrl.RawQuery = parameters.Encode()
-
-	return targetUrl.String()
+	return fragments
 }

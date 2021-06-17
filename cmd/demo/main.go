@@ -20,10 +20,11 @@ func main() {
 	server.IgnoreHeader("etag")
 	server.PassThrough = true
 
-	server.Get("/hello/:name", "my_layout", []string{
-		"header",
-		"hello",
-		"footer",
+	layout := viewproxy.NewFragment("my_layout")
+	server.Get("/hello/:name", layout, []*viewproxy.Fragment{
+		viewproxy.NewFragmentWithMetadata("header", map[string]string{"title": "Hello"}),
+		viewproxy.NewFragment("hello"),
+		viewproxy.NewFragment("footer"),
 	})
 
 	server.ListenAndServe()

@@ -29,7 +29,13 @@ func TestBasicServer(t *testing.T) {
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.IgnoreHeader("etag")
-	viewProxyServer.Get("/hello/:name", "/layouts/test_layout", []string{"header", "body", "footer"})
+	layout := NewFragment("/layouts/test_layout")
+	fragments := []*Fragment{
+		NewFragment("header"),
+		NewFragment("body"),
+		NewFragment("footer"),
+	}
+	viewProxyServer.Get("/hello/:name", layout, fragments)
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -49,7 +55,7 @@ func TestBasicServer(t *testing.T) {
 
 	assert.Equal(t, expected, string(body))
 	assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-	assert.Equal(t, "", resp.Header.Get("etag"), "Expexted response to have removed etag header")
+	assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
 func TestServerFromConfig(t *testing.T) {
@@ -64,17 +70,24 @@ func TestServerFromConfig(t *testing.T) {
 
 	file.Write([]byte(`[{
 		"url": "/hello/:name",
-		"layout": "/layouts/test_layout",
-		"fragments": ["header", "body", "footer"]
+		"layout": { "path": "/layouts/test_layout", "metadata": { "foo": "test_layout" }},
+		"fragments": [
+			{ "path": "header", "metadata": { "foo": "header" }},
+			{ "path": "body",   "metadata": { "foo": "body" }},
+			{ "path": "footer", "metadata": { "foo": "footer" }}
+		]
 	}]`))
 
 	file.Close()
 
 	viewProxyServer := NewServer("http://localhost:9994")
 	viewProxyServer.Port = 9998
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.LoadRoutesFromFile(file.Name())
+	err = viewProxyServer.LoadRoutesFromFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -246,7 +259,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	viewProxyServer := NewServer(server.URL)
 	viewProxyServer.Port = 9993
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-	viewProxyServer.Get("/hello/:name", "/foo", []string{})
+	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*Fragment{})
 	viewProxyServer.HmacSecret = secret
 
 	go func() {
@@ -283,7 +296,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	viewProxyServer := NewServer(server.URL)
 	viewProxyServer.Port = 9993
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-	viewProxyServer.Get("/hello/:name", "/foo", []string{"/bar"})
+	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*Fragment{NewFragment("/bar")})
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -326,7 +339,7 @@ func TestSupportsGzip(t *testing.T) {
 	viewProxyServer := NewServer(server.URL)
 	viewProxyServer.Port = 9993
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-	viewProxyServer.Get("/hello/:name", "/layout", []string{"/fragment"})
+	viewProxyServer.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

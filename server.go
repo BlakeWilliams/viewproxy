@@ -69,15 +69,14 @@ func NewServer(target string) *Server {
 	}
 }
 
-func (s *Server) Get(path string, layout string, fragments []string) {
-	baseLayoutUrl := s.urlFromTarget(layout)
-	baseFragmentUrls := make([]string, len(fragments))
+func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
+	route := newRoute(path, layout, fragments)
 
-	for i, fragment := range fragments {
-		baseFragmentUrls[i] = s.urlFromTarget(fragment)
+	layout.PreloadUrl(s.target)
+	for _, fragment := range fragments {
+		fragment.PreloadUrl(s.target)
 	}
 
-	route := newRoute(path, baseLayoutUrl, baseFragmentUrls)
 	s.routes = append(s.routes, *route)
 }
 
@@ -112,8 +111,8 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, insecure 
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
-		s.Get(routeEntry.Url, routeEntry.LayoutFragmentUrl, routeEntry.FragmentUrls)
+		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.Layout, routeEntry.Fragments)
+		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments)
 	}
 
 	return nil
@@ -159,8 +158,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.Transport = s.HttpTransport
 		req.HmacSecret = s.HmacSecret
 
-		for _, url := range route.fragmentsWithParameters(parameters) {
-			req.WithFragment(url)
+		for _, f := range route.FragmentsToRequest() {
+			query := url.Values{}
+			for name, value := range parameters {
+				query.Add(name, value)
+			}
+			req.WithFragment(f.UrlWithParams(query), f.Metadata)
 		}
 
 		req.WithHeadersFromRequest(r)
@@ -254,17 +257,4 @@ func (s *Server) ListenAndServe() error {
 	s.Logger.Printf("Listening on port %d\n", s.Port)
 
 	return s.httpServer.ListenAndServe()
-}
-
-func (s *Server) urlFromTarget(fragment string) string {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(fragment, "/")),
-	)
-
-	if err != nil {
-		// It should be okay to panic here, since this should only be called at boot time
-		panic(err)
-	}
-
-	return targetUrl.String()
 }

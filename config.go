@@ -7,9 +7,9 @@ import (
 )
 
 type configRouteEntry struct {
-	Url               string   `json:"url"`
-	LayoutFragmentUrl string   `json:"layout"`
-	FragmentUrls      []string `json:"fragments"`
+	Url       string      `json:"url"`
+	Layout    *Fragment   `json:"layout"`
+	Fragments []*Fragment `json:"fragments"`
 }
 
 func readConfigFile(filePath string) ([]configRouteEntry, error) {

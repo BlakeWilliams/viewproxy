@@ -24,7 +24,7 @@ func TestRouteMatch(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, "", make([]string, 0))
+			route := newRoute(test.routePath, NewFragment(""), []*Fragment{})
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.matchParts(providedUrlParts)
 
@@ -47,7 +47,7 @@ func TestRouteParameters(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, "", make([]string, 0))
+			route := newRoute(test.routePath, NewFragment(""), []*Fragment{})
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.parametersFor(providedUrlParts)
 
@@ -59,7 +59,11 @@ func TestRouteParameters(t *testing.T) {
 }
 
 func TestLayout(t *testing.T) {
-	route := newRoute("/", "my_layout", make([]string, 0))
+	route := newRoute("/", NewFragment("my_layout"), []*Fragment{})
 
-	assert.Equal(t, route.Layout, "my_layout")
+	assert.Equal(t, *route.Layout, Fragment{
+		Path:     "my_layout",
+		Url:      "",
+		Metadata: map[string]string{},
+	})
 }
