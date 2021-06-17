@@ -20,11 +20,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+type fragment struct {
+	url      string
+	metadata map[string]string
+}
+
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
 	layoutURL    string
-	fragmentURLS []string
+	fragments    []fragment
 	Timeout      time.Duration
 	HmacSecret   string
 	Non2xxErrors bool
@@ -35,7 +40,7 @@ func NewRequest() *Request {
 	return &Request{
 		ctx:          context.TODO(),
 		layoutURL:    "",
-		fragmentURLS: []string{},
+		fragments:    []fragment{},
 		Timeout:      time.Duration(10) * time.Second,
 		HmacSecret:   "",
 		Non2xxErrors: true,
@@ -52,8 +57,8 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 	}
 }
 
-func (r *Request) WithFragment(fragmentURL string) {
-	r.fragmentURLS = append(r.fragmentURLS, fragmentURL)
+func (r *Request) WithFragment(fragmentURL string, metadata map[string]string) {
+	r.fragments = append(r.fragments, fragment{url: fragmentURL, metadata: metadata})
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -71,33 +76,39 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
-	resultsCh := make(chan *Result, len(r.fragmentURLS))
+	resultsCh := make(chan *Result, len(r.fragments))
 
-	for _, url := range r.fragmentURLS {
+	for _, f := range r.fragments {
 		wg.Add(1)
-		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
+		go func(ctx context.Context, f fragment, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
 			span.SetAttributes(attribute.KeyValue{
 				Key:   "url",
-				Value: attribute.StringValue(url),
+				Value: attribute.StringValue(f.url),
 			})
+			for key, value := range f.metadata {
+				span.SetAttributes(attribute.KeyValue{
+					Key:   attribute.Key(key),
+					Value: attribute.StringValue(value),
+				})
+			}
 			defer span.End()
 
 			headersForRequest := r.Header
 			if r.HmacSecret != "" {
-				headersForRequest = r.headersWithHmac(url)
+				headersForRequest = r.headersWithHmac(f.url)
 			}
 
-			result, err := r.fetchUrl(ctx, "GET", url, headersForRequest, nil)
+			result, err := r.fetchUrl(ctx, "GET", f.url, headersForRequest, nil)
 
 			if err != nil {
 				errCh <- err
 			}
 
 			resultsCh <- result
-		}(ctx, url, resultsCh, &wg)
+		}(ctx, f, resultsCh, &wg)
 	}
 
 	// wait for all responses to complete
@@ -112,14 +123,14 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 		cancel()
 		return make([]*Result, 0), err
 	case <-done:
-		results := make([]*Result, len(r.fragmentURLS))
+		results := make([]*Result, len(r.fragments))
 
-		for i := 0; i < len(r.fragmentURLS); i++ {
+		for i := 0; i < len(r.fragments); i++ {
 			results[i] = <-resultsCh
 		}
 
 		sort.SliceStable(results, func(i int, j int) bool {
-			return indexOfResult(r.fragmentURLS, results[i]) < indexOfResult(r.fragmentURLS, results[j])
+			return indexOfResult(r.fragments, results[i]) < indexOfResult(r.fragments, results[j])
 		})
 
 		return results, nil
@@ -224,9 +235,9 @@ func pathFromFullUrl(fullUrl string) string {
 	}
 }
 
-func indexOfResult(urls []string, result *Result) int {
-	for i, url := range urls {
-		if url == result.Url {
+func indexOfResult(fragments []fragment, result *Result) int {
+	for i, fragment := range fragments {
+		if fragment.url == result.Url {
 			return i
 		}
 	}

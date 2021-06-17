@@ -17,8 +17,8 @@ func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
 	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
 
 	r := NewRequest()
-	r.WithFragment(urls[0])
-	r.WithFragment(urls[1])
+	r.WithFragment(urls[0], make(map[string]string))
+	r.WithFragment(urls[1], make(map[string]string))
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
@@ -47,7 +47,7 @@ func TestRequestDoForwardsHeaders(t *testing.T) {
 	fakeHTTPRequest := &http.Request{Header: headers}
 
 	r := NewRequest()
-	r.WithFragment("http://localhost:9990?fragment=echo_headers")
+	r.WithFragment("http://localhost:9990?fragment=echo_headers", make(map[string]string))
 	r.WithHeadersFromRequest(fakeHTTPRequest)
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
@@ -63,7 +63,7 @@ func TestFetch404ReturnsError(t *testing.T) {
 	server := startServer()
 
 	r := NewRequest()
-	r.WithFragment("http://localhost:9990/wowomg")
+	r.WithFragment("http://localhost:9990/wowomg", make(map[string]string))
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
@@ -80,8 +80,8 @@ func TestFetch500ReturnsError(t *testing.T) {
 
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
 	r := NewRequest()
-	r.WithFragment(urls[0])
-	r.WithFragment(urls[1])
+	r.WithFragment(urls[0], make(map[string]string))
+	r.WithFragment(urls[1], make(map[string]string))
 	results, err := r.Do(context.TODO())
 
 	duration := time.Since(start)
@@ -99,7 +99,7 @@ func TestFetchTimeout(t *testing.T) {
 	start := time.Now()
 
 	r := NewRequest()
-	r.WithFragment("http://localhost:9990?fragment=slow")
+	r.WithFragment("http://localhost:9990?fragment=slow", make(map[string]string))
 	r.Timeout = time.Duration(100) * time.Millisecond
 	_, err := r.Do(context.Background())
 	duration := time.Since(start)
@@ -115,7 +115,7 @@ func TestCanIgnoreNon2xxErrors(t *testing.T) {
 
 	ctx := context.Background()
 	r := NewRequest()
-	r.WithFragment("http://localhost:9990?fragment=slow")
+	r.WithFragment("http://localhost:9990?fragment=slow", make(map[string]string))
 	r.Timeout = time.Duration(100) * time.Millisecond
 	r.Non2xxErrors = false
 	_, err := r.Do(context.Background())

@@ -25,10 +25,11 @@ server.PassThrough = true
 // This will make a layout request and 3 fragment requests, one for the header, hello, and footer.
 
 // GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
-server.Get("/hello/:name", "my_layout", []string{
-	"header", // GET http://localhost:3000/_view_fragments/header?name=world
-	"hello",  // GET http://localhost:3000/_view_fragments/hello?name=world
-	"footer", // GET http://localhost:3000/_view_fragments/footer?name=world
+layout := viewproxy.NewFragment("my_layout")
+server.Get("/hello/:name", layout, []*viewproxy.Fragment{
+	viewproxy.NewFragment("header"), // GET http://localhost:3000/_view_fragments/header?name=world
+	viewproxy.NewFragment("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
+	viewproxy.NewFragment("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
 })
 
 server.ListenAndServe()
@@ -55,6 +56,17 @@ viewProxyServer.ConfigureTracing(
 	"my-viewproxy-service", // service name
 	false, // insecure mode?
 }
+```
+
+### Tracing attributes via fragment metadata
+
+Each fragment can be configured with a static map of key/values, which will be set as tracing attributes when each fragment is fetched.
+
+```go
+layout := viewproxy.NewFragment("my_layout")
+server.Get("/hello/:name", layout, []*viewproxy.Fragment{
+	viewproxy.NewFragmentWithMetadata("header", map[string]string{"page": "homepage"}), // spans will have a "page" attribute with value "homepage"
+})
 ```
 
 ## Philosophy
