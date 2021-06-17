@@ -40,7 +40,6 @@ func (f *Fragment) PreloadUrl(target string) {
 	)
 
 	if err != nil {
-		//TODO: that's not true anymore :)
 		// It should be okay to panic here, since this should only be called at boot time
 		panic(err)
 	}
