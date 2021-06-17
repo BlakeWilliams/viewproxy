@@ -45,6 +45,9 @@ type Server struct {
 	// generated at the start of the request, and `X-Authorization`, which is a
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
 	HmacSecret string
+	// The transport passed to `http.Client` when fetching fragments or proxying
+	// requests.
+	HttpTransport http.RoundTripper
 	// A function that is called before the request is handled by viewproxy.
 	PreRequest    func(w http.ResponseWriter, r *http.Request)
 	tracingConfig tracing.TracingConfig
@@ -53,6 +56,7 @@ type Server struct {
 func NewServer(target string) *Server {
 	return &Server{
 		DefaultPageTitle: "viewproxy",
+		HttpTransport:    http.DefaultTransport,
 		Logger:           log.Default(),
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
@@ -150,14 +154,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
+		req := multiplexer.NewRequest()
+		req.Timeout = s.ProxyTimeout
+		req.Transport = s.HttpTransport
+		req.HmacSecret = s.HmacSecret
 
-		results, err := multiplexer.Fetch(
-			ctx,
-			route.fragmentsWithParameters(parameters),
-			multiplexer.HeadersFromRequest(r),
-			s.ProxyTimeout,
-			s.HmacSecret,
-		)
+		for _, url := range route.fragmentsWithParameters(parameters) {
+			req.WithFragment(url)
+		}
+
+		req.WithHeadersFromRequest(r)
+		results, err := req.Do(ctx)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
@@ -189,11 +196,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(
+		req := multiplexer.NewRequest()
+		req.Timeout = s.ProxyTimeout
+		req.Transport = s.HttpTransport
+		req.Non2xxErrors = false
+
+		req.WithHeadersFromRequest(r)
+		result, err := req.DoSingle(
 			ctx,
 			r.Method,
 			targetUrl.String(),
-			multiplexer.HeadersFromRequest(r),
 			r.Body,
 		)
 

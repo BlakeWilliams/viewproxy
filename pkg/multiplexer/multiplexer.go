@@ -20,20 +20,60 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration, hmacSecret string) ([]*Result, error) {
+type Request struct {
+	ctx          context.Context
+	Header       http.Header
+	layoutURL    string
+	fragmentURLS []string
+	Timeout      time.Duration
+	HmacSecret   string
+	Non2xxErrors bool
+	Transport    http.RoundTripper
+}
+
+func NewRequest() *Request {
+	return &Request{
+		ctx:          context.TODO(),
+		layoutURL:    "",
+		fragmentURLS: []string{},
+		Timeout:      time.Duration(10) * time.Second,
+		HmacSecret:   "",
+		Non2xxErrors: true,
+		Transport:    http.DefaultTransport,
+		Header:       http.Header{},
+	}
+}
+
+func (r *Request) WithHeadersFromRequest(req *http.Request) {
+	for key, values := range HeadersFromRequest(req) {
+		for _, value := range values {
+			r.Header.Add(key, value)
+		}
+	}
+}
+
+func (r *Request) WithFragment(fragmentURL string) {
+	r.fragmentURLS = append(r.fragmentURLS, fragmentURL)
+}
+
+func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
+	return r.fetchUrl(ctx, method, url, r.Header, body)
+}
+
+func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	tracer := otel.Tracer("multiplexer")
 	var span trace.Span
 	ctx, span = tracer.Start(ctx, "fetch_urls")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
-	resultsCh := make(chan *Result, len(urls))
+	resultsCh := make(chan *Result, len(r.fragmentURLS))
 
-	for _, url := range urls {
+	for _, url := range r.fragmentURLS {
 		wg.Add(1)
 		go func(ctx context.Context, url string, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
@@ -45,12 +85,12 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 			})
 			defer span.End()
 
-			headersForRequest := headers
-			if hmacSecret != "" {
-				headersForRequest = headersWithHmac(headers, hmacSecret, url)
+			headersForRequest := r.Header
+			if r.HmacSecret != "" {
+				headersForRequest = r.headersWithHmac(url)
 			}
 
-			result, err := fetchUrl(ctx, url, headersForRequest)
+			result, err := r.fetchUrl(ctx, "GET", url, headersForRequest, nil)
 
 			if err != nil {
 				errCh <- err
@@ -72,14 +112,14 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 		cancel()
 		return make([]*Result, 0), err
 	case <-done:
-		results := make([]*Result, len(urls))
+		results := make([]*Result, len(r.fragmentURLS))
 
-		for i := 0; i < len(urls); i++ {
+		for i := 0; i < len(r.fragmentURLS); i++ {
 			results[i] = <-resultsCh
 		}
 
 		sort.SliceStable(results, func(i int, j int) bool {
-			return indexOfResult(urls, results[i]) < indexOfResult(urls, results[j])
+			return indexOfResult(r.fragmentURLS, results[i]) < indexOfResult(r.fragmentURLS, results[j])
 		})
 
 		return results, nil
@@ -88,46 +128,7 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 	}
 }
 
-func headersWithHmac(headers http.Header, secret string, url string) http.Header {
-	newHeaders := http.Header{}
-	for name, value := range headers {
-		newHeaders[name] = value
-	}
-
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(
-		[]byte(fmt.Sprintf("%s,%s", pathFromFullUrl(url), timestamp)),
-	)
-
-	newHeaders.Set("Authorization", hex.EncodeToString(mac.Sum(nil)))
-	newHeaders.Set("X-Authorization-Time", timestamp)
-
-	return newHeaders
-}
-
-func pathFromFullUrl(fullUrl string) string {
-	targetUrl, _ := url.Parse(fullUrl)
-
-	if targetUrl.RawQuery != "" {
-		return fmt.Sprintf("%s?%s", targetUrl.Path, targetUrl.RawQuery)
-	} else {
-		return targetUrl.Path
-	}
-}
-
-func indexOfResult(urls []string, result *Result) int {
-	for i, url := range urls {
-		if url == result.Url {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
+func (r *Request) fetchUrl(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -142,6 +143,7 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}
 
 	client := &http.Client{
+		Transport: r.Transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -153,6 +155,18 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}
 
 	duration := time.Since(start)
+
+	if r.Non2xxErrors {
+		// 404 is a failure, we should cancel the other requests
+		if resp.StatusCode == 404 {
+			return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
+		}
+
+		// Any non 2xx status code should be considered an error
+		if !(resp.StatusCode >= 200 && resp.StatusCode <= 299) {
+			return nil, fmt.Errorf("Status %d for URL %s: %w", resp.StatusCode, url, Non2xxErr)
+		}
+	}
 
 	var responseBody []byte
 
@@ -181,22 +195,41 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}, nil
 }
 
-func fetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
-	result, err := FetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
-
-	if err != nil {
-		return nil, err
+func (r *Request) headersWithHmac(url string) http.Header {
+	newHeaders := http.Header{}
+	for name, value := range r.Header {
+		newHeaders[name] = value
 	}
 
-	// 404 is a failure, we should cancel the other requests
-	if result.StatusCode == 404 {
-		return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+
+	mac := hmac.New(sha256.New, []byte(r.HmacSecret))
+	mac.Write(
+		[]byte(fmt.Sprintf("%s,%s", pathFromFullUrl(url), timestamp)),
+	)
+
+	newHeaders.Set("Authorization", hex.EncodeToString(mac.Sum(nil)))
+	newHeaders.Set("X-Authorization-Time", timestamp)
+
+	return newHeaders
+}
+
+func pathFromFullUrl(fullUrl string) string {
+	targetUrl, _ := url.Parse(fullUrl)
+
+	if targetUrl.RawQuery != "" {
+		return fmt.Sprintf("%s?%s", targetUrl.Path, targetUrl.RawQuery)
+	} else {
+		return targetUrl.Path
+	}
+}
+
+func indexOfResult(urls []string, result *Result) int {
+	for i, url := range urls {
+		if url == result.Url {
+			return i
+		}
 	}
 
-	// Any non 2xx status code should be considered an error
-	if !(result.StatusCode >= 200 && result.StatusCode <= 299) {
-		return nil, fmt.Errorf("Status %d for URL %s: %w", result.StatusCode, url, Non2xxErr)
-	}
-
-	return result, nil
+	return -1
 }
