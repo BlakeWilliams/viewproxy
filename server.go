@@ -154,15 +154,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if route != nil {
 		s.Logger.Printf("Handling %s\n", r.URL.Path)
+		req := multiplexer.NewRequest()
+		req.Timeout = s.ProxyTimeout
+		req.Transport = s.HttpTransport
+		req.HmacSecret = s.HmacSecret
 
-		results, err := multiplexer.Fetch(
-			ctx,
-			route.fragmentsWithParameters(parameters),
-			multiplexer.HeadersFromRequest(r),
-			s.ProxyTimeout,
-			s.HmacSecret,
-			s.HttpTransport,
-		)
+		for _, url := range route.fragmentsWithParameters(parameters) {
+			req.WithFragment(url)
+		}
+
+		req.WithHeadersFromRequest(r)
+		results, err := req.Do(ctx)
 
 		if err != nil {
 			// TODO detect 404's and 500's and handle them appropriately
@@ -194,13 +196,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		result, err := multiplexer.FetchUrlWithoutStatusCodeCheck(
+		req := multiplexer.NewRequest()
+		req.Timeout = s.ProxyTimeout
+		req.Transport = s.HttpTransport
+		req.Non2xxErrors = false
+
+		req.WithHeadersFromRequest(r)
+		result, err := req.DoSingle(
 			ctx,
 			r.Method,
 			targetUrl.String(),
-			multiplexer.HeadersFromRequest(r),
 			r.Body,
-			s.HttpTransport,
 		)
 
 		if err != nil {

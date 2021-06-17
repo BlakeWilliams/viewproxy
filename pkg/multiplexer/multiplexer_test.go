@@ -12,11 +12,15 @@ import (
 
 var defaultTimeout = time.Duration(5) * time.Second
 
-func TestFetchReturnsMultipleResults(t *testing.T) {
+func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
 	server := startServer()
-
 	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
-	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout, "", http.DefaultTransport)
+
+	r := NewRequest()
+	r.WithFragment(urls[0])
+	r.WithFragment(urls[1])
+	r.Timeout = defaultTimeout
+	results, err := r.Do(context.TODO())
 
 	assert.Nil(t, err)
 
@@ -35,14 +39,18 @@ func TestFetchReturnsMultipleResults(t *testing.T) {
 	server.Close()
 }
 
-func TestFetchForwardsHeaders(t *testing.T) {
+func TestRequestDoForwardsHeaders(t *testing.T) {
 	server := startServer()
-	headers := map[string][]string{
-		"X-Name": []string{"viewproxy"},
-	}
+	headers := http.Header{}
+	headers.Add("X-Name", "viewproxy")
 
-	urls := []string{"http://localhost:9990?fragment=echo_headers"}
-	results, err := Fetch(context.TODO(), urls, headers, defaultTimeout, "", http.DefaultTransport)
+	fakeHTTPRequest := &http.Request{Header: headers}
+
+	r := NewRequest()
+	r.WithFragment("http://localhost:9990?fragment=echo_headers")
+	r.WithHeadersFromRequest(fakeHTTPRequest)
+	r.Timeout = defaultTimeout
+	results, err := r.Do(context.TODO())
 
 	assert.Nil(t, err)
 
@@ -54,8 +62,10 @@ func TestFetchForwardsHeaders(t *testing.T) {
 func TestFetch404ReturnsError(t *testing.T) {
 	server := startServer()
 
-	urls := []string{"http://localhost:9990/wowomg"}
-	results, err := Fetch(context.TODO(), urls, http.Header{}, defaultTimeout, "", http.DefaultTransport)
+	r := NewRequest()
+	r.WithFragment("http://localhost:9990/wowomg")
+	r.Timeout = defaultTimeout
+	results, err := r.Do(context.TODO())
 
 	assert.ErrorIs(t, err, NotFoundErr)
 	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: Not found")
@@ -69,8 +79,10 @@ func TestFetch500ReturnsError(t *testing.T) {
 	start := time.Now()
 
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
-	ctx := context.Background()
-	results, err := Fetch(ctx, urls, http.Header{}, defaultTimeout, "", http.DefaultTransport)
+	r := NewRequest()
+	r.WithFragment(urls[0])
+	r.WithFragment(urls[1])
+	results, err := r.Do(context.TODO())
 
 	duration := time.Since(start)
 
@@ -86,8 +98,10 @@ func TestFetchTimeout(t *testing.T) {
 	server := startServer()
 	start := time.Now()
 
-	urls := []string{"http://localhost:9990?fragment=slow"}
-	_, err := Fetch(context.Background(), urls, http.Header{}, time.Duration(100)*time.Millisecond, "", http.DefaultTransport)
+	r := NewRequest()
+	r.WithFragment("http://localhost:9990?fragment=slow")
+	r.Timeout = time.Duration(100) * time.Millisecond
+	_, err := r.Do(context.Background())
 	duration := time.Since(start)
 
 	assert.EqualError(t, err, "context deadline exceeded")
@@ -96,14 +110,20 @@ func TestFetchTimeout(t *testing.T) {
 	server.Close()
 }
 
-func TestFetchWithoutStatusCodeCheckIgnoresStatuses(t *testing.T) {
+func TestCanIgnoreNon2xxErrors(t *testing.T) {
 	server := startServer()
 
 	ctx := context.Background()
-	results, err := FetchUrlWithoutStatusCodeCheck(ctx, "get", "http://localhost:9990/?fragment=oops", http.Header{}, nil, http.DefaultTransport)
+	r := NewRequest()
+	r.WithFragment("http://localhost:9990?fragment=slow")
+	r.Timeout = time.Duration(100) * time.Millisecond
+	r.Non2xxErrors = false
+	_, err := r.Do(context.Background())
+
+	result, err := r.DoSingle(ctx, "get", "http://localhost:9990/?fragment=oops", nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 500, results.StatusCode)
+	assert.Equal(t, 500, result.StatusCode)
 
 	server.Close()
 }
