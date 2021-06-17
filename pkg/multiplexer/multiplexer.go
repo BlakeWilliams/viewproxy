@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration, hmacSecret string) ([]*Result, error) {
+func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time.Duration, hmacSecret string, transport http.RoundTripper) ([]*Result, error) {
 	tracer := otel.Tracer("multiplexer")
 	var span trace.Span
 	ctx, span = tracer.Start(ctx, "fetch_urls")
@@ -50,7 +50,7 @@ func Fetch(ctx context.Context, urls []string, headers http.Header, timeout time
 				headersForRequest = headersWithHmac(headers, hmacSecret, url)
 			}
 
-			result, err := fetchUrl(ctx, url, headersForRequest)
+			result, err := fetchUrl(ctx, url, headersForRequest, transport)
 
 			if err != nil {
 				errCh <- err
@@ -127,7 +127,7 @@ func indexOfResult(urls []string, result *Result) int {
 	return -1
 }
 
-func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
+func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser, transport http.RoundTripper) (*Result, error) {
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -142,6 +142,7 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}
 
 	client := &http.Client{
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -181,8 +182,8 @@ func FetchUrlWithoutStatusCodeCheck(ctx context.Context, method string, url stri
 	}, nil
 }
 
-func fetchUrl(ctx context.Context, url string, headers http.Header) (*Result, error) {
-	result, err := FetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil)
+func fetchUrl(ctx context.Context, url string, headers http.Header, transport http.RoundTripper) (*Result, error) {
+	result, err := FetchUrlWithoutStatusCodeCheck(ctx, http.MethodGet, url, headers, nil, transport)
 
 	if err != nil {
 		return nil, err

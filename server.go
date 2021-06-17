@@ -45,6 +45,9 @@ type Server struct {
 	// generated at the start of the request, and `X-Authorization`, which is a
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
 	HmacSecret string
+	// The transport passed to `http.Client` when fetching fragments or proxying
+	// requests.
+	HttpTransport http.RoundTripper
 	// A function that is called before the request is handled by viewproxy.
 	PreRequest    func(w http.ResponseWriter, r *http.Request)
 	tracingConfig tracing.TracingConfig
@@ -53,6 +56,7 @@ type Server struct {
 func NewServer(target string) *Server {
 	return &Server{
 		DefaultPageTitle: "viewproxy",
+		HttpTransport:    http.DefaultTransport,
 		Logger:           log.Default(),
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
@@ -157,6 +161,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			multiplexer.HeadersFromRequest(r),
 			s.ProxyTimeout,
 			s.HmacSecret,
+			s.HttpTransport,
 		)
 
 		if err != nil {
@@ -195,6 +200,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			targetUrl.String(),
 			multiplexer.HeadersFromRequest(r),
 			r.Body,
+			s.HttpTransport,
 		)
 
 		if err != nil {
