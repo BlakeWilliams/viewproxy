@@ -15,6 +15,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Re-export ResultError for convenience
+type ResultError = multiplexer.ResultError
+
 type logger interface {
 	Fatal(v ...interface{})
 	Fatalf(format string, v ...interface{})

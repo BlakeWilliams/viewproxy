@@ -167,16 +167,13 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 
 	duration := time.Since(start)
 
-	if r.Non2xxErrors {
-		// 404 is a failure, we should cancel the other requests
-		if resp.StatusCode == 404 {
-			return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
+	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
+		err := &ResultError{
+			StatusCode: resp.StatusCode,
+			Url:        url,
 		}
 
-		// Any non 2xx status code should be considered an error
-		if !(resp.StatusCode >= 200 && resp.StatusCode <= 299) {
-			return nil, fmt.Errorf("Status %d for URL %s: %w", resp.StatusCode, url, Non2xxErr)
-		}
+		return nil, err
 	}
 
 	var responseBody []byte
