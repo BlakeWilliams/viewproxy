@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -386,6 +387,83 @@ func TestPrerequestCallback(t *testing.T) {
 	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 
 	<-done
+}
+
+func TestOnErrorHandler(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
+
+	server := NewServer("http://localhost:9994")
+	server.Get("/hello/:name", NewFragment("/oops"), []*Fragment{})
+
+	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("x-viewproxy", "true")
+		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+	}
+	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
+		defer close(done)
+		var resultErr *ResultError
+
+		assert.ErrorAs(t, e, &resultErr)
+		assert.Equal(t, "http://localhost:9994/oops?name=world", resultErr.Result.Url)
+		assert.Equal(t, 500, resultErr.Result.StatusCode)
+	}
+
+	fakeWriter := httptest.NewRecorder()
+	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
+	fakeRequest.RemoteAddr = "192.168.1.1"
+
+	server.ServeHTTP(fakeWriter, fakeRequest)
+
+	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		assert.Fail(t, ctx.Err().Error())
+	}
+}
+
+func TestOnError404Handler(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+
+	targetServer := startTargetServer()
+	defer targetServer.Shutdown(context.TODO())
+
+	server := NewServer("http://localhost:9994")
+	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
+	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("x-viewproxy", "true")
+		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+	}
+	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
+		defer close(done)
+		var resultErr *ResultError
+
+		assert.ErrorAs(t, e, &resultErr)
+		assert.Equal(t, "http://localhost:9994/definitely_missing_and_not_defined?name=world", resultErr.Result.Url)
+		assert.Equal(t, 404, resultErr.Result.StatusCode)
+	}
+
+	fakeWriter := httptest.NewRecorder()
+	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
+	fakeRequest.RemoteAddr = "192.168.1.1"
+
+	server.ServeHTTP(fakeWriter, fakeRequest)
+
+	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		assert.Fail(t, ctx.Err().Error())
+	}
 }
 
 func startTargetServer() *http.Server {

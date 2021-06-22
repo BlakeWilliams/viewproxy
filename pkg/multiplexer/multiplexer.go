@@ -165,19 +165,8 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		return nil, err
 	}
 
+	defer resp.Body.Close()
 	duration := time.Since(start)
-
-	if r.Non2xxErrors {
-		// 404 is a failure, we should cancel the other requests
-		if resp.StatusCode == 404 {
-			return nil, fmt.Errorf("URL %s: %w", url, NotFoundErr)
-		}
-
-		// Any non 2xx status code should be considered an error
-		if !(resp.StatusCode >= 200 && resp.StatusCode <= 299) {
-			return nil, fmt.Errorf("Status %d for URL %s: %w", resp.StatusCode, url, Non2xxErr)
-		}
-	}
 
 	var responseBody []byte
 
@@ -197,13 +186,23 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		return nil, err
 	}
 
-	return &Result{
+	result := &Result{
 		Url:          url,
 		Duration:     duration,
 		HttpResponse: resp,
 		Body:         responseBody,
 		StatusCode:   resp.StatusCode,
-	}, nil
+	}
+
+	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
+		err := &ResultError{
+			Result: result,
+		}
+
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (r *Request) headersWithHmac(url string) http.Header {

@@ -1,13 +1,22 @@
 package multiplexer
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"time"
 )
 
-var NotFoundErr = errors.New("Not found")
-var Non2xxErr = errors.New("Status code not in 2xx range")
+type ResultError struct {
+	Result *Result
+}
+
+func (re *ResultError) Error() string {
+	return fmt.Sprintf(
+		"status: %d url: %s",
+		re.Result.StatusCode,
+		re.Result.Url,
+	)
+}
 
 type Result struct {
 	Url          string

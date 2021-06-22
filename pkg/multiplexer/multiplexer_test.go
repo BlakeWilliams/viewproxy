@@ -67,8 +67,10 @@ func TestFetch404ReturnsError(t *testing.T) {
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
-	assert.ErrorIs(t, err, NotFoundErr)
-	assert.EqualError(t, err, "URL http://localhost:9990/wowomg: Not found")
+	var resultErr *ResultError
+	assert.ErrorAs(t, err, &resultErr)
+	assert.Equal(t, 404, resultErr.Result.StatusCode)
+	assert.Equal(t, "http://localhost:9990/wowomg", resultErr.Result.Url)
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
@@ -87,8 +89,10 @@ func TestFetch500ReturnsError(t *testing.T) {
 	duration := time.Since(start)
 
 	assert.Less(t, duration, time.Duration(3)*time.Second)
-	assert.ErrorIs(t, err, Non2xxErr)
-	assert.EqualError(t, err, "Status 500 for URL http://localhost:9990/?fragment=oops: Status code not in 2xx range")
+	var resultErr *ResultError
+	assert.ErrorAs(t, err, &resultErr)
+	assert.Equal(t, 500, resultErr.Result.StatusCode)
+	assert.Equal(t, "http://localhost:9990/?fragment=oops", resultErr.Result.Url)
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
