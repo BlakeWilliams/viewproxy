@@ -69,8 +69,8 @@ func TestFetch404ReturnsError(t *testing.T) {
 
 	var resultErr *ResultError
 	assert.ErrorAs(t, err, &resultErr)
-	assert.Equal(t, 404, resultErr.StatusCode)
-	assert.Equal(t, "http://localhost:9990/wowomg", resultErr.Url)
+	assert.Equal(t, 404, resultErr.Result.StatusCode)
+	assert.Equal(t, "http://localhost:9990/wowomg", resultErr.Result.Url)
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
@@ -91,8 +91,8 @@ func TestFetch500ReturnsError(t *testing.T) {
 	assert.Less(t, duration, time.Duration(3)*time.Second)
 	var resultErr *ResultError
 	assert.ErrorAs(t, err, &resultErr)
-	assert.Equal(t, 500, resultErr.StatusCode)
-	assert.Equal(t, "http://localhost:9990/?fragment=oops", resultErr.Url)
+	assert.Equal(t, 500, resultErr.Result.StatusCode)
+	assert.Equal(t, "http://localhost:9990/?fragment=oops", resultErr.Result.Url)
 	assert.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()

@@ -7,15 +7,14 @@ import (
 )
 
 type ResultError struct {
-	StatusCode int
-	Url        string
+	Result *Result
 }
 
 func (re *ResultError) Error() string {
 	return fmt.Sprintf(
 		"status: %d url: %s",
-		re.StatusCode,
-		re.Url,
+		re.Result.StatusCode,
+		re.Result.Url,
 	)
 }
 

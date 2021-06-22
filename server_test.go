@@ -409,8 +409,8 @@ func TestOnErrorHandler(t *testing.T) {
 		var resultErr *ResultError
 
 		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(t, "http://localhost:9994/oops?name=world", resultErr.Url)
-		assert.Equal(t, 500, resultErr.StatusCode)
+		assert.Equal(t, "http://localhost:9994/oops?name=world", resultErr.Result.Url)
+		assert.Equal(t, 500, resultErr.Result.StatusCode)
 	}
 
 	fakeWriter := httptest.NewRecorder()
@@ -447,8 +447,8 @@ func TestOnError404Handler(t *testing.T) {
 		var resultErr *ResultError
 
 		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(t, "http://localhost:9994/definitely_missing_and_not_defined?name=world", resultErr.Url)
-		assert.Equal(t, 404, resultErr.StatusCode)
+		assert.Equal(t, "http://localhost:9994/definitely_missing_and_not_defined?name=world", resultErr.Result.Url)
+		assert.Equal(t, 404, resultErr.Result.StatusCode)
 	}
 
 	fakeWriter := httptest.NewRecorder()

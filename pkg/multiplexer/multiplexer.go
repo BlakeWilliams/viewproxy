@@ -165,16 +165,8 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		return nil, err
 	}
 
+	defer resp.Body.Close()
 	duration := time.Since(start)
-
-	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
-		err := &ResultError{
-			StatusCode: resp.StatusCode,
-			Url:        url,
-		}
-
-		return nil, err
-	}
 
 	var responseBody []byte
 
@@ -194,13 +186,23 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		return nil, err
 	}
 
-	return &Result{
+	result := &Result{
 		Url:          url,
 		Duration:     duration,
 		HttpResponse: resp,
 		Body:         responseBody,
 		StatusCode:   resp.StatusCode,
-	}, nil
+	}
+
+	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
+		err := &ResultError{
+			Result: result,
+		}
+
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (r *Request) headersWithHmac(url string) http.Header {
