@@ -51,6 +51,8 @@ type Server struct {
 	// A function that is called before the request is handled by viewproxy.
 	PreRequest    func(w http.ResponseWriter, r *http.Request)
 	tracingConfig tracing.TracingConfig
+	// A function that is called when an error occurs in the viewproxy handler
+	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
 func NewServer(target string) *Server {
@@ -170,11 +172,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		results, err := req.Do(ctx)
 
 		if err != nil {
-			// TODO detect 404's and 500's and handle them appropriately
-			s.Logger.Printf("Errored %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("500 internal server error"))
-			return
+			if s.OnError != nil {
+				s.OnError(w, r, err)
+				return
+			} else {
+				s.Logger.Printf("Errored %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte("500 internal server error"))
+				return
+			}
 		}
 
 		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
