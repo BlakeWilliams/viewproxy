@@ -106,6 +106,35 @@ func TestServer(t *testing.T) {
 	}
 }
 
+func TestQueryParamForwardingServer(t *testing.T) {
+	viewProxyServer := NewServer(targetServer.URL)
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	viewProxyServer.IgnoreHeader("etag")
+	layout := NewFragment("/layouts/test_layout")
+	fragments := []*Fragment{
+		NewFragment("header"),
+		NewFragment("body"),
+		NewFragment("footer"),
+	}
+	viewProxyServer.Get("/hello/:name", layout, fragments)
+
+	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.ServeHTTP(w, r)
+
+	resp := w.Result()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+	expected := "<html><body>hello world!</body></html>"
+
+	assert.Equal(t, expected, string(body))
+	assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+	assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
+}
+
 func TestPassThroughEnabled(t *testing.T) {
 	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
@@ -396,7 +425,11 @@ func startTargetServer() *httptest.Server {
 			w.Write([]byte("<body>"))
 		} else if r.URL.Path == "/body" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
+			if params.Get("important") != "" {
+				w.Write([]byte(fmt.Sprintf("hello %s!", params.Get("name"))))
+			} else {
+				w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
+			}
 		} else if r.URL.Path == "/footer" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("</body>"))

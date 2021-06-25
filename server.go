@@ -168,6 +168,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			for name, value := range parameters {
 				query.Add(name, value)
 			}
+			for name, values := range r.URL.Query() {
+				if query.Get(name) == "" {
+					for _, value := range values {
+						query.Add(name, value)
+					}
+				}
+			}
+
 			req.WithFragment(f.UrlWithParams(query), f.Metadata)
 		}
 
