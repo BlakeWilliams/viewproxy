@@ -21,11 +21,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBasicServer(t *testing.T) {
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
+var targetServer *httptest.Server
 
-	viewProxyServer := NewServer("http://localhost:9994")
+func TestMain(m *testing.M) {
+	targetServer = startTargetServer()
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
+
+	os.Exit(m.Run())
+}
+
+func TestServer(t *testing.T) {
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
@@ -38,31 +45,7 @@ func TestBasicServer(t *testing.T) {
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
-
-	resp, err := http.Get("http://localhost:9998/hello/world")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	expected := "<html><body>hello world</body></html>"
-
-	assert.Equal(t, expected, string(body))
-	assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-	assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
-}
-
-func TestServerFromConfig(t *testing.T) {
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
-
+	// Load routes from config
 	file, err := ioutil.TempFile(os.TempDir(), "config.json")
 	if err != nil {
 		t.Error(err)
@@ -70,7 +53,7 @@ func TestServerFromConfig(t *testing.T) {
 	defer os.Remove(file.Name())
 
 	file.Write([]byte(`[{
-		"url": "/hello/:name",
+		"url": "/greetings/:name",
 		"layout": { "path": "/layouts/test_layout", "metadata": { "foo": "test_layout" }},
 		"fragments": [
 			{ "path": "header", "metadata": { "foo": "header" }},
@@ -81,14 +64,11 @@ func TestServerFromConfig(t *testing.T) {
 
 	file.Close()
 
-	viewProxyServer := NewServer("http://localhost:9994")
-	viewProxyServer.Port = 9998
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	err = viewProxyServer.LoadRoutesFromFile(file.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.Nil(t, err)
+
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
@@ -96,108 +76,107 @@ func TestServerFromConfig(t *testing.T) {
 	}()
 	defer viewProxyServer.Close()
 
-	resp, err := http.Get("http://localhost:9998/hello/world")
+	tests := map[string]struct {
+		url           string
+		expected_body string
+	}{
+		"basic server": {
+			url:           "/hello/world",
+			expected_body: "<html><body>hello world</body></html>",
+		},
 
-	if err != nil {
-		t.Fatal(err)
+		"json configured server": {
+			url:           "/greetings/world",
+			expected_body: "<html><body>hello world</body></html>",
+		},
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	expected := "<html><body>hello world</body></html>"
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 
-	assert.Equal(t, expected, string(body))
+			resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", tc.url))
+			assert.Nil(t, err)
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(t, err)
+
+			assert.Equal(t, tc.expected_body, string(body))
+			assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+			assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
+		})
+	}
 }
 
 func TestPassThroughEnabled(t *testing.T) {
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
-
-	viewProxyServer := NewServer("http://localhost:9994")
-	viewProxyServer.Port = 9995
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.PassThrough = true
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/oops", nil)
+	w := httptest.NewRecorder()
 
-	resp, err := http.Get("http://localhost:9995/oops")
+	viewProxyServer.ServeHTTP(w, r)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
 	assert.Equal(t, 500, resp.StatusCode)
 	assert.Equal(t, "Something went wrong", string(body))
 }
 
 func TestPassThroughDisabled(t *testing.T) {
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
-
-	viewProxyServer := NewServer("http://localhost:9994")
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.PassThrough = false
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/hello/world", nil)
+	w := httptest.NewRecorder()
 
-	resp, err := http.Get("http://localhost:9993/hello/world")
+	viewProxyServer.ServeHTTP(w, r)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
 
 	assert.Equal(t, 404, resp.StatusCode)
 	assert.Equal(t, "404 not found", string(body))
 }
 
 func TestPassThroughSetsCorrectHeaders(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 	done := make(chan struct{})
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(done)
 
 		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
 		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		assert.Equal(t, "localhost:9993", r.Header.Get("X-Forwarded-Host"))
+		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.PassThrough = true
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/hello/world", nil)
+	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
+	r.RemoteAddr = "localhost:1"
+	w := httptest.NewRecorder()
 
-	_, err := http.Get("http://localhost:9993/hello/world")
-
-	assert.Nil(t, err)
+	viewProxyServer.ServeHTTP(w, r)
 
 	select {
 	case <-done:
 		server.Close()
+	case <-ctx.Done():
+		assert.Fail(t, ctx.Err().Error())
 	}
 }
 
 func TestPassThroughPostRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 	done := make(chan struct{})
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(done)
 
@@ -209,24 +188,18 @@ func TestPassThroughPostRequest(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.PassThrough = true
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
+	w := httptest.NewRecorder()
 
-	_, err := http.Post("http://localhost:9993/hello/world", "text/plain", strings.NewReader("hello"))
-
-	assert.Nil(t, err)
+	viewProxyServer.ServeHTTP(w, r)
 
 	select {
 	case <-done:
 		server.Close()
+	case <-ctx.Done():
+		assert.Fail(t, ctx.Err().Error())
 	}
 }
 
@@ -258,20 +231,13 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*Fragment{})
 	viewProxyServer.HmacSecret = secret
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
+	w := httptest.NewRecorder()
 
-	_, err := http.Get("http://localhost:9993/hello/world")
-	assert.Nil(t, err)
+	viewProxyServer.ServeHTTP(w, r)
 
 	<-done
 
@@ -290,25 +256,19 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 		}
 		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
 		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		assert.Equal(t, "localhost:9993", r.Header.Get("X-Forwarded-Host"))
+		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*Fragment{NewFragment("/bar")})
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
+	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
+	r.RemoteAddr = "localhost:1"
+	w := httptest.NewRecorder()
 
-	_, err := http.Get("http://localhost:9993/hello/world")
-
-	assert.Nil(t, err)
+	viewProxyServer.ServeHTTP(w, r)
 
 	<-layoutDone
 	<-fragmentDone
@@ -338,24 +298,15 @@ func TestSupportsGzip(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Port = 9993
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	viewProxyServer.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
 
-	go func() {
-		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-	defer viewProxyServer.Close()
+	r := httptest.NewRequest("GET", "/hello/world", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
 
-	req, err := http.NewRequest(http.MethodGet, "http://localhost:9993/hello/world", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	assert.Nil(t, err)
+	viewProxyServer.ServeHTTP(w, r)
 
-	req.Header.Set("Accept-Encoding", "gzip")
-	resp, err := http.DefaultClient.Do(req)
-	assert.Nil(t, err)
+	resp := w.Result()
 
 	gzReader, err := gzip.NewReader(resp.Body)
 	assert.Nil(t, err)
@@ -378,13 +329,15 @@ func TestPrerequestCallback(t *testing.T) {
 		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
 	}
 
-	fakeWriter := httptest.NewRecorder()
-	fakeRequest := httptest.NewRequest("GET", "/", nil)
-	fakeRequest.RemoteAddr = "192.168.1.1"
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "192.168.1.1"
 
-	server.ServeHTTP(fakeWriter, fakeRequest)
+	server.ServeHTTP(w, r)
 
-	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+	resp := w.Result()
+
+	assert.Equal(t, "true", resp.Header.Get("x-viewproxy"))
 
 	<-done
 }
@@ -394,49 +347,7 @@ func TestOnErrorHandler(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
-
-	server := NewServer("http://localhost:9994")
-	server.Get("/hello/:name", NewFragment("/oops"), []*Fragment{})
-
-	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("x-viewproxy", "true")
-		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
-	}
-	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
-		defer close(done)
-		var resultErr *ResultError
-
-		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(t, "http://localhost:9994/oops?name=world", resultErr.Result.Url)
-		assert.Equal(t, 500, resultErr.Result.StatusCode)
-	}
-
-	fakeWriter := httptest.NewRecorder()
-	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
-	fakeRequest.RemoteAddr = "192.168.1.1"
-
-	server.ServeHTTP(fakeWriter, fakeRequest)
-
-	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		assert.Fail(t, ctx.Err().Error())
-	}
-}
-
-func TestOnError404Handler(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	done := make(chan struct{})
-
-	targetServer := startTargetServer()
-	defer targetServer.Shutdown(context.TODO())
-
-	server := NewServer("http://localhost:9994")
+	server := NewServer(targetServer.URL)
 	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
 	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-viewproxy", "true")
@@ -447,7 +358,11 @@ func TestOnError404Handler(t *testing.T) {
 		var resultErr *ResultError
 
 		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(t, "http://localhost:9994/definitely_missing_and_not_defined?name=world", resultErr.Result.Url)
+		assert.Equal(
+			t,
+			fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
+			resultErr.Result.Url,
+		)
 		assert.Equal(t, 404, resultErr.Result.StatusCode)
 	}
 
@@ -466,7 +381,7 @@ func TestOnError404Handler(t *testing.T) {
 	}
 }
 
-func startTargetServer() *http.Server {
+func startTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -494,12 +409,6 @@ func startTargetServer() *http.Server {
 		}
 	})
 
-	testServer := &http.Server{Addr: ":9994", Handler: instance}
-	go func() {
-		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-
+	testServer := httptest.NewServer(instance)
 	return testServer
 }
