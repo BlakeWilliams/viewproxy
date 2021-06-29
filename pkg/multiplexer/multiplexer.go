@@ -107,6 +107,8 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 				errCh <- err
 			}
 
+			result.metadata = f.metadata
+
 			resultsCh <- result
 		}(ctx, f, resultsCh, &wg)
 	}

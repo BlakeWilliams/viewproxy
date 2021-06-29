@@ -201,7 +201,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		resBuilder := newResponseBuilder(*s, w)
 		resBuilder.SetLayout(results[0])
-		resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders())
+		resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
 		resBuilder.SetFragments(results[1:])
 		resBuilder.Write()
 	} else if s.PassThrough {
@@ -237,8 +237,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		resBuilder := newResponseBuilder(*s, w)
 		resBuilder.StatusCode = result.StatusCode
-		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders())
-		resBuilder.SetFragments([]*multiplexer.Result{result})
+		results := []*multiplexer.Result{result}
+		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders(), results)
+		resBuilder.SetFragments(results)
 		resBuilder.Write()
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)

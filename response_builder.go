@@ -23,7 +23,7 @@ func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 	rb.body = result.Body
 }
 
-func (rb *responseBuilder) SetHeaders(headers http.Header) {
+func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexer.Result) {
 	for name, values := range headers {
 		for _, value := range values {
 			rb.writer.Header().Add(name, value)
@@ -33,6 +33,8 @@ func (rb *responseBuilder) SetHeaders(headers http.Header) {
 	for _, ignoredHeader := range rb.server.ignoreHeaders {
 		rb.writer.Header().Del(ignoredHeader)
 	}
+
+	multiplexer.SetServerTimingHeader(results, rb.writer)
 }
 
 func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
