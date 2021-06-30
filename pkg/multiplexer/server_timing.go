@@ -7,7 +7,7 @@ import (
 	servertiming "github.com/mitchellh/go-server-timing"
 )
 
-func AggregateServerTimingHeaders(results []*Result, writer http.ResponseWriter) {
+func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter) {
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {

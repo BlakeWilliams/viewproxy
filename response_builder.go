@@ -35,7 +35,7 @@ func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexe
 	}
 
 	if len(results) > 1 {
-		multiplexer.AggregateServerTimingHeaders(results, rb.writer)
+		multiplexer.SetCombinedServerTimingHeader(results, rb.writer)
 	}
 }
 
