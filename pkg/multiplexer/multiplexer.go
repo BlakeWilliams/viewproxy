@@ -84,10 +84,6 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
-			span.SetAttributes(attribute.KeyValue{
-				Key:   "url",
-				Value: attribute.StringValue(f.url),
-			})
 			for key, value := range f.metadata {
 				span.SetAttributes(attribute.KeyValue{
 					Key:   attribute.Key(key),
