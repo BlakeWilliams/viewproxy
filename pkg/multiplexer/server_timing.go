@@ -7,22 +7,12 @@ import (
 	servertiming "github.com/mitchellh/go-server-timing"
 )
 
-func SetServerTimingHeader(results []*Result, writer http.ResponseWriter) {
-	if len(results) == 1 {
-		value := results[0].HttpResponse.Header.Get(servertiming.HeaderKey)
-		if len(value) > 0 {
-			writer.Header().Set(servertiming.HeaderKey, value)
-		}
-		return
-	}
-
+func AggregateServerTimingHeaders(results []*Result, writer http.ResponseWriter) {
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {
-		fragment, ok := result.metadata["timingPrefix"]
-
 		// Skip results with no timing label
-		if !ok {
+		if len(result.TimingLabel) == 0 {
 			continue
 		}
 
@@ -37,8 +27,8 @@ func SetServerTimingHeader(results []*Result, writer http.ResponseWriter) {
 			if metric.Duration == 0 {
 				continue
 			}
-			metric.Desc = fragment + " " + metric.Name
-			metric.Name = fragment + "-" + metric.Name
+			metric.Desc = result.TimingLabel + " " + metric.Name
+			metric.Name = result.TimingLabel + "-" + metric.Name
 			metrics = append(metrics, metric)
 		}
 	}

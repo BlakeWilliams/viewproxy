@@ -34,7 +34,9 @@ func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexe
 		rb.writer.Header().Del(ignoredHeader)
 	}
 
-	multiplexer.SetServerTimingHeader(results, rb.writer)
+	if len(results) > 1 {
+		multiplexer.AggregateServerTimingHeaders(results, rb.writer)
+	}
 }
 
 func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {

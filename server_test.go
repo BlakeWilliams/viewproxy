@@ -273,10 +273,15 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 }
 
 func TestFragmentSetsCorrectHeaders(t *testing.T) {
+	layoutDone := make(chan bool)
+	fragmentDone := make(chan bool)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/foo" {
+			defer close(layoutDone)
 			w.Header().Set("Server-Timing", "db;dur=12, git;dur=0")
 		} else if r.URL.Path == "/bar" {
+			defer close(fragmentDone)
 			w.Header().Set("Server-Timing", "db;dur=34")
 		}
 		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
@@ -286,10 +291,11 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Get("/hello/:name",
-		NewFragmentWithMetadata("/foo", map[string]string{"timingPrefix": "foo"}),
-		[]*Fragment{NewFragmentWithMetadata("/bar", map[string]string{"timingPrefix": "bar"})},
-	)
+	layout := NewFragment("/foo")
+	layout.TimingLabel = "foo"
+	fragment := NewFragment("/bar")
+	fragment.TimingLabel = "bar"
+	viewProxyServer.Get("/hello/:name", layout, []*Fragment{fragment})
 
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
@@ -297,6 +303,9 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	viewProxyServer.ServeHTTP(w, r)
+
+	<-layoutDone
+	<-fragmentDone
 
 	resp := w.Result()
 
