@@ -89,7 +89,7 @@ go test ./...
 
 The [`Server-Timing`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Server-Timing)
 header from all responses can be aggregated by using the `TimingLabel` setting
-on each fragments.
+on each fragment.
 
 For example if your server emits database timing metrics in the form of
 `db;dur=<duration>`, then the following example would generate a combined
