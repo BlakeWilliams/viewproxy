@@ -171,10 +171,13 @@ func TestPassThroughDisabled(t *testing.T) {
 }
 
 func TestPassThroughSetsCorrectHeaders(t *testing.T) {
-	_, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
+	done := make(chan struct{})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+
 		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
 		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
 		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
@@ -192,6 +195,13 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	viewProxyServer.ServeHTTP(w, r)
+
+	select {
+	case <-done:
+		server.Close()
+	case <-ctx.Done():
+		assert.Fail(t, ctx.Err().Error())
+	}
 
 	resp := w.Result()
 
