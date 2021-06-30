@@ -107,10 +107,11 @@ func (s *Server) LoadRoutesFromJSON(routesJson string) error {
 	return s.loadRoutes(routeEntries)
 }
 
-func (s *Server) ConfigureTracing(endpoint string, serviceName string, insecure bool) {
+func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
 	s.tracingConfig.Enabled = true
 	s.tracingConfig.Endpoint = endpoint
 	s.tracingConfig.ServiceName = serviceName
+	s.tracingConfig.ServiceVersion = serviceVersion
 	s.tracingConfig.Insecure = insecure
 }
 
