@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/mitchellh/go-server-timing v1.0.1 // indirect
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/contrib/propagators v0.20.0 // indirect
 	go.opentelemetry.io/otel v0.20.0 // indirect

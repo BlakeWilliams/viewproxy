@@ -196,7 +196,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithFragment(f.UrlWithParams(query), f.Metadata)
+		req.WithFragment(f.UrlWithParams(query), f.Metadata, f.TimingLabel)
 	}
 
 	req.WithHeadersFromRequest(r)
@@ -260,8 +260,9 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request, ctx context
 
 		resBuilder := newResponseBuilder(*s, w)
 		resBuilder.StatusCode = result.StatusCode
-		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders())
-		resBuilder.SetFragments([]*multiplexer.Result{result})
+		results := []*multiplexer.Result{result}
+		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders(), results)
+		resBuilder.SetFragments(results)
 		resBuilder.Write()
 	} else {
 		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)

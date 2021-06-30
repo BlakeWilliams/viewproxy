@@ -7,9 +7,10 @@ import (
 )
 
 type Fragment struct {
-	Path     string `json:"path"`
-	Url      string
-	Metadata map[string]string `json:"metadata"`
+	Path        string `json:"path"`
+	Url         string
+	Metadata    map[string]string `json:"metadata"`
+	TimingLabel string            `json:"timingLabel"`
 }
 
 func NewFragment(path string) *Fragment {
