@@ -8,7 +8,6 @@ import (
 )
 
 func SetServerTimingHeader(results []*Result, writer http.ResponseWriter) {
-	// Forward header directly if only one result
 	if len(results) == 1 {
 		value := results[0].HttpResponse.Header.Get(servertiming.HeaderKey)
 		if len(value) > 0 {
@@ -20,7 +19,7 @@ func SetServerTimingHeader(results []*Result, writer http.ResponseWriter) {
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {
-		fragment, ok := result.metadata["timing"]
+		fragment, ok := result.metadata["timingPrefix"]
 
 		// Skip results with no timing label
 		if !ok {
@@ -34,6 +33,7 @@ func SetServerTimingHeader(results []*Result, writer http.ResponseWriter) {
 		}
 
 		for _, metric := range timings.Metrics {
+			// Ignore zero duration timings to reduce UI noise
 			if metric.Duration == 0 {
 				continue
 			}
