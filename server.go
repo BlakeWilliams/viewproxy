@@ -221,7 +221,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	resBuilder := newResponseBuilder(*s, w)
 	resBuilder.SetLayout(results[0])
-	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders())
+	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
 	resBuilder.SetFragments(results[1:])
 	resBuilder.Write()
 }
