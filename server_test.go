@@ -348,14 +348,15 @@ func TestSupportsGzip(t *testing.T) {
 	server.Close()
 }
 
-func TestPrerequestCallback(t *testing.T) {
+func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer("http://fake.net")
-	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
 		defer close(done)
 		w.Header().Set("x-viewproxy", "true")
 		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+		callback()
 	}
 
 	w := httptest.NewRecorder()
@@ -378,8 +379,9 @@ func TestOnErrorHandler(t *testing.T) {
 
 	server := NewServer(targetServer.URL)
 	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
-	server.PreRequest = func(w http.ResponseWriter, r *http.Request) {
+	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
 		w.Header().Set("x-viewproxy", "true")
+		callback()
 		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
 	}
 	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {

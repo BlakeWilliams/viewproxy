@@ -52,7 +52,8 @@ type Server struct {
 	// requests.
 	HttpTransport http.RoundTripper
 	// A function that is called before the request is handled by viewproxy.
-	PreRequest    func(w http.ResponseWriter, r *http.Request)
+	// Call the callback to have viewproxy handle the request.
+	AroundRequest func(w http.ResponseWriter, r *http.Request, callback func())
 	tracingConfig tracing.TracingConfig
 	// A function that is called when an error occurs in the viewproxy handler
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
@@ -66,7 +67,7 @@ func NewServer(target string) *Server {
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
-		PreRequest:       func(http.ResponseWriter, *http.Request) {},
+		AroundRequest:    func(_ http.ResponseWriter, _ *http.Request, callback func()) { callback() },
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
@@ -153,7 +154,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span = tracer.Start(ctx, "ServeHTTP")
 	defer span.End()
 
-	s.PreRequest(w, r)
+	callbackCalled := false
+	s.AroundRequest(w, r, func() {
+		s.doServeHTTP(w, r, ctx)
+		callbackCalled = true
+	})
+
+	if !callbackCalled {
+		panic(fmt.Sprintf("Callback was not called for route %s", r.URL.Path))
+	}
+}
+
+func (s *Server) doServeHTTP(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	route, parameters := s.matchingRoute(r.URL.Path)
 
 	if route != nil {
