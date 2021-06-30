@@ -352,15 +352,17 @@ func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer("http://fake.net")
+	server.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
 	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
 		defer close(done)
 		w.Header().Set("x-viewproxy", "true")
+		assert.Equal(t, "/hello/:name", r.Context().Value("viewproxy-route-path").(string))
 		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
 		callback()
 	}
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.RemoteAddr = "192.168.1.1"
 
 	server.ServeHTTP(w, r)
