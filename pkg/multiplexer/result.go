@@ -24,6 +24,7 @@ type Result struct {
 	HttpResponse *http.Response
 	Body         []byte
 	StatusCode   int
+	TimingLabel  string
 }
 
 func (r *Result) Header() http.Header {

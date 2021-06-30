@@ -81,6 +81,29 @@ server.Get("/hello/:name", layout, []*viewproxy.Fragment{
 
 Run the tests:
 
-```
+```sh
 go test ./...
+```
+
+## Server-Timing header aggregation
+
+The [`Server-Timing`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Server-Timing)
+header from all responses can be aggregated by using the `TimingLabel` setting
+on each fragment.
+
+For example if your server emits database timing metrics in the form of
+`db;dur=<duration>`, then the following example would generate a combined
+header of:
+
+```
+layout-db;desc="layout db";dur=<duration>,body-db;desc="body db";dur=<duration>
+```
+
+
+```go
+layout := viewproxy.NewFragment("my_layout")
+layout.TimingLabel = "layout"
+body := viewproxy.NewFragment("my_body")
+body.TimingLabel = "body"
+server.Get("/hello/:name", layout, []*viewproxy.Fragment{body})
 ```

@@ -21,8 +21,9 @@ import (
 )
 
 type fragment struct {
-	url      string
-	metadata map[string]string
+	url         string
+	metadata    map[string]string
+	timingLabel string
 }
 
 type Request struct {
@@ -57,8 +58,8 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 	}
 }
 
-func (r *Request) WithFragment(fragmentURL string, metadata map[string]string) {
-	r.fragments = append(r.fragments, fragment{url: fragmentURL, metadata: metadata})
+func (r *Request) WithFragment(fragmentURL string, metadata map[string]string, timingLabel string) {
+	r.fragments = append(r.fragments, fragment{url: fragmentURL, metadata: metadata, timingLabel: timingLabel})
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -101,6 +102,8 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 			if err != nil {
 				errCh <- err
+			} else {
+				result.TimingLabel = f.timingLabel
 			}
 
 			resultsCh <- result
