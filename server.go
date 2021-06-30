@@ -59,6 +59,8 @@ type Server struct {
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
+const RouteContextKey = "viewproxy-route"
+
 func NewServer(target string) *Server {
 	return &Server{
 		DefaultPageTitle: "viewproxy",
@@ -163,10 +165,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			callbackCalled = true
 		})
 	} else {
-		ctxWithPath := context.WithValue(ctx, "viewproxy-route-path", route.Path)
+		ctxWithPath := context.WithValue(ctx, RouteContextKey, route)
 		rWithPath := r.WithContext(ctxWithPath)
 		s.AroundRequest(w, rWithPath, func() {
-			s.handleRequest(w, r, route, parameters, ctx)
+			s.handleRequest(w, rWithPath, route, parameters, ctx)
 			callbackCalled = true
 		})
 	}

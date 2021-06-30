@@ -373,7 +373,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
 		defer close(done)
 		w.Header().Set("x-viewproxy", "true")
-		assert.Equal(t, "/hello/:name", r.Context().Value("viewproxy-route-path").(string))
+		assert.Equal(t, "/hello/:name", r.Context().Value("viewproxy-route").(*Route).Path)
 		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
 		callback()
 	}
