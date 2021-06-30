@@ -206,8 +206,6 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	resp := w.Result()
 
 	assert.Equal(t, "db;dur=53", resp.Header.Get("Server-Timing"))
-
-	server.Close()
 }
 
 func TestPassThroughPostRequest(t *testing.T) {
