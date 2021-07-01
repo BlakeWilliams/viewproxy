@@ -335,7 +335,10 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 
 	resp := w.Result()
 
-	assert.Equal(t, "foo-db;desc=\"foo db\";dur=12,bar-db;desc=\"bar db\";dur=34", resp.Header.Get("Server-Timing"))
+	assert.Contains(t, resp.Header.Get("Server-Timing"), "foo-db;desc=\"foo db\";dur=12")
+	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
+	assert.Contains(t, resp.Header.Get("Server-Timing"), "foo-fragment;desc=\"foo fragment\";dur=")
+	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-fragment;desc=\"bar fragment\";dur=")
 
 	server.Close()
 }
