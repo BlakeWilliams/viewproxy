@@ -160,7 +160,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	callbackCalled := false
 
 	if r.URL.Path == "/_ping" {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("200 ok"))
 		return
 	}
