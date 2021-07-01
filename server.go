@@ -159,6 +159,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, parameters := s.matchingRoute(r.URL.Path)
 	callbackCalled := false
 
+	if r.URL.Path == "/_ping" {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("200 ok"))
+		return
+	}
+
 	if route == nil {
 		s.AroundRequest(w, r, func() {
 			s.passThrough(w, r, ctx)

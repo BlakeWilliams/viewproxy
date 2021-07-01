@@ -106,6 +106,24 @@ func TestServer(t *testing.T) {
 	}
 }
 
+func TestHealthCheck(t *testing.T) {
+	viewProxyServer := NewServer(targetServer.URL)
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	r := httptest.NewRequest("GET", "/_ping", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.ServeHTTP(w, r)
+
+	resp := w.Result()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+	expected := "200 ok"
+
+	assert.Equal(t, expected, string(body))
+}
+
 func TestQueryParamForwardingServer(t *testing.T) {
 	viewProxyServer := NewServer(targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
