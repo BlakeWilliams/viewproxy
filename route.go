@@ -5,6 +5,7 @@ import (
 )
 
 type Route struct {
+	Path      string
 	Parts     []string
 	Layout    *Fragment
 	fragments []*Fragment
@@ -12,6 +13,7 @@ type Route struct {
 
 func newRoute(path string, layout *Fragment, fragments []*Fragment) *Route {
 	return &Route{
+		Path:      path,
 		Parts:     strings.Split(path, "/"),
 		Layout:    layout,
 		fragments: fragments,

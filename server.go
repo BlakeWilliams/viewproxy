@@ -52,11 +52,14 @@ type Server struct {
 	// requests.
 	HttpTransport http.RoundTripper
 	// A function that is called before the request is handled by viewproxy.
-	PreRequest    func(w http.ResponseWriter, r *http.Request)
+	// Call the callback to have viewproxy handle the request.
+	AroundRequest func(w http.ResponseWriter, r *http.Request, callback func())
 	tracingConfig tracing.TracingConfig
 	// A function that is called when an error occurs in the viewproxy handler
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
+
+const RouteContextKey = "viewproxy-route"
 
 func NewServer(target string) *Server {
 	return &Server{
@@ -66,7 +69,7 @@ func NewServer(target string) *Server {
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
-		PreRequest:       func(http.ResponseWriter, *http.Request) {},
+		AroundRequest:    func(_ http.ResponseWriter, _ *http.Request, callback func()) { callback() },
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
@@ -153,58 +156,80 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span = tracer.Start(ctx, "ServeHTTP")
 	defer span.End()
 
-	s.PreRequest(w, r)
 	route, parameters := s.matchingRoute(r.URL.Path)
+	callbackCalled := false
 
-	if route != nil {
-		s.Logger.Printf("Handling %s\n", r.URL.Path)
-		req := multiplexer.NewRequest()
-		req.Timeout = s.ProxyTimeout
-		req.Transport = s.HttpTransport
-		req.HmacSecret = s.HmacSecret
+	if route == nil {
+		s.AroundRequest(w, r, func() {
+			s.passThrough(w, r, ctx)
+			callbackCalled = true
+		})
+	} else {
+		ctxWithPath := context.WithValue(ctx, RouteContextKey, route)
+		rWithPath := r.WithContext(ctxWithPath)
+		s.AroundRequest(w, rWithPath, func() {
+			s.handleRequest(w, rWithPath, route, parameters, ctx)
+			callbackCalled = true
+		})
+	}
 
-		for _, f := range route.FragmentsToRequest() {
-			query := url.Values{}
-			for name, value := range parameters {
-				query.Add(name, value)
-			}
-			for name, values := range r.URL.Query() {
-				if query.Get(name) == "" {
-					for _, value := range values {
-						query.Add(name, value)
-					}
+	if !callbackCalled {
+		panic(fmt.Sprintf("Callback was not called for route %s", r.URL.Path))
+	}
+}
+
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
+	s.Logger.Printf("Handling %s\n", r.URL.Path)
+	req := multiplexer.NewRequest()
+	req.Timeout = s.ProxyTimeout
+	req.Transport = s.HttpTransport
+	req.HmacSecret = s.HmacSecret
+
+	for _, f := range route.FragmentsToRequest() {
+		query := url.Values{}
+		for name, value := range parameters {
+			query.Add(name, value)
+		}
+		for name, values := range r.URL.Query() {
+			if query.Get(name) == "" {
+				for _, value := range values {
+					query.Add(name, value)
 				}
 			}
-
-			req.WithFragment(f.UrlWithParams(query), f.Metadata, f.TimingLabel)
 		}
 
-		req.WithHeadersFromRequest(r)
-		results, err := req.Do(ctx)
+		req.WithFragment(f.UrlWithParams(query), f.Metadata, f.TimingLabel)
+	}
 
-		if err != nil {
-			if s.OnError != nil {
-				s.OnError(w, r, err)
-				return
-			} else {
-				s.Logger.Printf("Errored %v", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte("500 internal server error"))
-				return
-			}
+	req.WithHeadersFromRequest(r)
+	results, err := req.Do(ctx)
+
+	if err != nil {
+		if s.OnError != nil {
+			s.OnError(w, r, err)
+			return
+		} else {
+			s.Logger.Printf("Errored %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("500 internal server error"))
+			return
 		}
+	}
 
-		s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
-		for _, result := range results[1:] {
-			s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
-		}
+	s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
+	for _, result := range results[1:] {
+		s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
+	}
 
-		resBuilder := newResponseBuilder(*s, w)
-		resBuilder.SetLayout(results[0])
-		resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
-		resBuilder.SetFragments(results[1:])
-		resBuilder.Write()
-	} else if s.PassThrough {
+	resBuilder := newResponseBuilder(*s, w)
+	resBuilder.SetLayout(results[0])
+	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
+	resBuilder.SetFragments(results[1:])
+	resBuilder.Write()
+}
+
+func (s *Server) passThrough(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+	if s.PassThrough {
 		targetUrl, err := url.Parse(
 			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
 		)
