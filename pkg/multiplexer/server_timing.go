@@ -7,6 +7,8 @@ import (
 	servertiming "github.com/mitchellh/go-server-timing"
 )
 
+const resultTimingLabel = "fragment"
+
 func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter) {
 	metrics := []*servertiming.Metric{}
 
@@ -15,6 +17,12 @@ func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter
 		if len(result.TimingLabel) == 0 {
 			continue
 		}
+
+		metrics = append(metrics, &servertiming.Metric{
+			Desc:     result.TimingLabel + " " + resultTimingLabel,
+			Name:     result.TimingLabel + "-" + resultTimingLabel,
+			Duration: result.Duration,
+		})
 
 		resultTiming := result.HttpResponse.Header.Get(servertiming.HeaderKey)
 		timings, err := servertiming.ParseHeader(resultTiming)
