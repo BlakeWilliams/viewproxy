@@ -179,9 +179,9 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 func (s *Server) requestHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		route := s.GetRoute(ctx)
+		route := RouteFromContext(ctx)
 		if route != nil {
-			parameters := s.GetParameters(ctx)
+			parameters := ParametersFromContext(ctx)
 			s.handleRequest(w, r, route, parameters, ctx)
 		} else {
 			s.passThrough(w, r)
