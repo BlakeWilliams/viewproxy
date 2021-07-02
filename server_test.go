@@ -427,7 +427,6 @@ func TestOnErrorHandler(t *testing.T) {
 			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
 			next.ServeHTTP(w, r)
 		})
-
 	}
 	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
 		defer close(done)
