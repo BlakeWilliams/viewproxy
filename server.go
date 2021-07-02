@@ -58,8 +58,9 @@ type Server struct {
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
-const RouteContextKey = "viewproxy-route"
-const ParametersContextKey = "viewproxy-params"
+type routeContextKey struct{}
+
+type parametersContextKey struct{}
 
 func NewServer(target string) *Server {
 	server := &Server{
@@ -168,8 +169,8 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 		}
 
 		if route != nil {
-			ctx = context.WithValue(ctx, RouteContextKey, route)
-			ctx = context.WithValue(ctx, ParametersContextKey, parameters)
+			ctx = context.WithValue(ctx, routeContextKey{}, route)
+			ctx = context.WithValue(ctx, parametersContextKey{}, parameters)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -299,7 +300,7 @@ func (s *Server) GetRoute(ctx context.Context) *Route {
 		return nil
 	}
 
-	if route := ctx.Value(RouteContextKey); route != nil {
+	if route := ctx.Value(routeContextKey{}); route != nil {
 		return route.(*Route)
 	}
 	return nil
@@ -310,7 +311,7 @@ func (s *Server) GetParameters(ctx context.Context) map[string]string {
 		return nil
 	}
 
-	if parameters := ctx.Value(ParametersContextKey); parameters != nil {
+	if parameters := ctx.Value(parametersContextKey{}); parameters != nil {
 		return parameters.(map[string]string)
 	}
 	return nil
