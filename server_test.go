@@ -113,7 +113,7 @@ func TestHealthCheck(t *testing.T) {
 	r := httptest.NewRequest("GET", "/_ping", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -140,7 +140,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -161,7 +161,7 @@ func TestPassThroughEnabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/oops", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -178,7 +178,7 @@ func TestPassThroughDisabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -212,7 +212,7 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	r.RemoteAddr = "localhost:1"
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	select {
 	case <-done:
@@ -247,7 +247,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	select {
 	case <-done:
@@ -291,7 +291,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	<-done
 
@@ -328,7 +328,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	r.RemoteAddr = "localhost:1"
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	<-layoutDone
 	<-fragmentDone
@@ -371,7 +371,7 @@ func TestSupportsGzip(t *testing.T) {
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
 
-	viewProxyServer.ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -391,19 +391,21 @@ func TestAroundRequestCallback(t *testing.T) {
 
 	server := NewServer("http://fake.net")
 	server.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
-	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
-		defer close(done)
-		w.Header().Set("x-viewproxy", "true")
-		assert.Equal(t, "/hello/:name", r.Context().Value("viewproxy-route").(*Route).Path)
-		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
-		callback()
+	server.AroundRequest = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer close(done)
+			w.Header().Set("x-viewproxy", "true")
+			assert.Equal(t, "/hello/:name", server.GetRoute(r.Context()).Path)
+			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+			next.ServeHTTP(w, r)
+		})
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.RemoteAddr = "192.168.1.1"
 
-	server.ServeHTTP(w, r)
+	server.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -419,10 +421,13 @@ func TestOnErrorHandler(t *testing.T) {
 
 	server := NewServer(targetServer.URL)
 	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
-	server.AroundRequest = func(w http.ResponseWriter, r *http.Request, callback func()) {
-		w.Header().Set("x-viewproxy", "true")
-		callback()
-		assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+	server.AroundRequest = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("x-viewproxy", "true")
+			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+			next.ServeHTTP(w, r)
+		})
+
 	}
 	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
 		defer close(done)
@@ -441,7 +446,7 @@ func TestOnErrorHandler(t *testing.T) {
 	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
 	fakeRequest.RemoteAddr = "192.168.1.1"
 
-	server.ServeHTTP(fakeWriter, fakeRequest)
+	server.createHandler().ServeHTTP(fakeWriter, fakeRequest)
 
 	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 

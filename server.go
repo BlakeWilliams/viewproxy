@@ -51,30 +51,32 @@ type Server struct {
 	// The transport passed to `http.Client` when fetching fragments or proxying
 	// requests.
 	HttpTransport http.RoundTripper
-	// A function that is called before the request is handled by viewproxy.
-	// Call the callback to have viewproxy handle the request.
-	AroundRequest func(w http.ResponseWriter, r *http.Request, callback func())
+	// A function to wrap request handling with other middleware
+	AroundRequest func(http.Handler) http.Handler
 	tracingConfig tracing.TracingConfig
 	// A function that is called when an error occurs in the viewproxy handler
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
 const RouteContextKey = "viewproxy-route"
+const ParametersContextKey = "viewproxy-params"
 
 func NewServer(target string) *Server {
-	return &Server{
+	server := &Server{
 		DefaultPageTitle: "viewproxy",
 		HttpTransport:    http.DefaultTransport,
 		Logger:           log.Default(),
 		Port:             3005,
 		ProxyTimeout:     time.Duration(10) * time.Second,
 		PassThrough:      false,
-		AroundRequest:    func(_ http.ResponseWriter, _ *http.Request, callback func()) { callback() },
+		AroundRequest:    func(h http.Handler) http.Handler { return h },
 		target:           target,
 		ignoreHeaders:    make([]string, 0),
 		routes:           make([]Route, 0),
 		tracingConfig:    tracing.TracingConfig{Enabled: false},
 	}
+
+	return server
 }
 
 func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
@@ -148,40 +150,47 @@ func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
 	return nil, nil
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+func (s *Server) rootHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-	tracer := otel.Tracer("server")
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "ServeHTTP")
-	defer span.End()
+		tracer := otel.Tracer("server")
+		var span trace.Span
+		ctx, span = tracer.Start(ctx, "ServeHTTP")
+		defer span.End()
 
-	route, parameters := s.matchingRoute(r.URL.Path)
-	callbackCalled := false
+		route, parameters := s.matchingRoute(r.URL.Path)
 
-	if r.URL.Path == "/_ping" {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("200 ok"))
-		return
-	}
+		if r.URL.Path == "/_ping" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("200 ok"))
+			return
+		}
 
-	if route == nil {
-		s.AroundRequest(w, r, func() {
-			s.passThrough(w, r, ctx)
-			callbackCalled = true
-		})
-	} else {
-		ctxWithPath := context.WithValue(ctx, RouteContextKey, route)
-		rWithPath := r.WithContext(ctxWithPath)
-		s.AroundRequest(w, rWithPath, func() {
-			s.handleRequest(w, rWithPath, route, parameters, ctx)
-			callbackCalled = true
-		})
-	}
+		if route != nil {
+			ctx = context.WithValue(ctx, RouteContextKey, route)
+			ctx = context.WithValue(ctx, ParametersContextKey, parameters)
+		}
 
-	if !callbackCalled {
-		panic(fmt.Sprintf("Callback was not called for route %s", r.URL.Path))
-	}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (s *Server) requestHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		route := s.GetRoute(ctx)
+		if route != nil {
+			parameters := s.GetParameters(ctx)
+			s.handleRequest(w, r, route, parameters, ctx)
+		} else {
+			s.passThrough(w, r)
+		}
+	})
+}
+
+func (s *Server) createHandler() http.Handler {
+	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
@@ -234,7 +243,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	resBuilder.Write()
 }
 
-func (s *Server) passThrough(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 	if s.PassThrough {
 		targetUrl, err := url.Parse(
 			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
@@ -254,7 +263,7 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request, ctx context
 
 		req.WithHeadersFromRequest(r)
 		result, err := req.DoSingle(
-			ctx,
+			r.Context(),
 			r.Method,
 			targetUrl.String(),
 			r.Body,
@@ -285,6 +294,28 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 	w.Write([]byte("Internal Server Error"))
 }
 
+func (s *Server) GetRoute(ctx context.Context) *Route {
+	if ctx == nil {
+		return nil
+	}
+
+	if route := ctx.Value(RouteContextKey); route != nil {
+		return route.(*Route)
+	}
+	return nil
+}
+
+func (s *Server) GetParameters(ctx context.Context) map[string]string {
+	if ctx == nil {
+		return nil
+	}
+
+	if parameters := ctx.Value(ParametersContextKey); parameters != nil {
+		return parameters.(map[string]string)
+	}
+	return nil
+}
+
 func (s *Server) ListenAndServe() error {
 	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
 	if err != nil {
@@ -297,7 +328,7 @@ func (s *Server) ListenAndServe() error {
 
 	s.httpServer = &http.Server{
 		Addr:           fmt.Sprintf(":%d", s.Port),
-		Handler:        s,
+		Handler:        s.createHandler(),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
