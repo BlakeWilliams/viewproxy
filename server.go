@@ -63,7 +63,7 @@ type routeContextKey struct{}
 type parametersContextKey struct{}
 
 func NewServer(target string) *Server {
-	server := &Server{
+	return &Server{
 		DefaultPageTitle: "viewproxy",
 		HttpTransport:    http.DefaultTransport,
 		Logger:           log.Default(),
@@ -76,8 +76,6 @@ func NewServer(target string) *Server {
 		routes:           make([]Route, 0),
 		tracingConfig:    tracing.TracingConfig{Enabled: false},
 	}
-
-	return server
 }
 
 func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
