@@ -15,10 +15,11 @@ import (
 )
 
 type TracingConfig struct {
-	Enabled     bool
-	Endpoint    string
-	Insecure    bool
-	ServiceName string
+	Enabled        bool
+	Endpoint       string
+	Insecure       bool
+	ServiceName    string
+	ServiceVersion string
 }
 
 type logger interface {
@@ -52,10 +53,13 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 			return nil, err
 		}
 
-		resource, err := resource.New(ctx, resource.WithAttributes(
-			attribute.String("service.name", config.ServiceName)))
-		//TODO: set version based on deployed commit
-		// attribute.String("service.version", appConfig.BuildSHA)))
+		attributes := []attribute.KeyValue{attribute.String("service.name", config.ServiceName)}
+
+		if config.ServiceVersion != "" {
+			attributes = append(attributes, attribute.String("service.version", config.ServiceVersion))
+		}
+
+		resource, err := resource.New(ctx, resource.WithAttributes(attributes...))
 		if err != nil {
 			return nil, err
 		}
