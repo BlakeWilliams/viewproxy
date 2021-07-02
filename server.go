@@ -294,7 +294,7 @@ func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
 	w.Write([]byte("Internal Server Error"))
 }
 
-func (s *Server) GetRoute(ctx context.Context) *Route {
+func RouteFromContext(ctx context.Context) *Route {
 	if ctx == nil {
 		return nil
 	}
@@ -305,7 +305,7 @@ func (s *Server) GetRoute(ctx context.Context) *Route {
 	return nil
 }
 
-func (s *Server) GetParameters(ctx context.Context) map[string]string {
+func ParametersFromContext(ctx context.Context) map[string]string {
 	if ctx == nil {
 		return nil
 	}
