@@ -58,7 +58,7 @@ func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 	if len(rb.body) == 0 {
 		rb.body = contentHtml
 	} else {
-		outputHtml := bytes.Replace(rb.body, []byte("{{{VIEW_PROXY_CONTENT}}}"), contentHtml, 1)
+		outputHtml := bytes.Replace(rb.body, []byte("<view-proxy-content></view-proxy-content>"), contentHtml, 1)
 		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 
 		rb.body = outputHtml

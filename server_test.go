@@ -350,7 +350,7 @@ func TestSupportsGzip(t *testing.T) {
 		gzWriter := gzip.NewWriter(&b)
 
 		if r.URL.Path == "/layout" {
-			gzWriter.Write([]byte("<body>{{{VIEW_PROXY_CONTENT}}}</body>"))
+			gzWriter.Write([]byte("<body><view-proxy-content></view-proxy-content></body>"))
 		} else if r.URL.Path == "/fragment" {
 			gzWriter.Write([]byte("wow gzipped!"))
 		} else {
@@ -465,7 +465,7 @@ func startTargetServer() *httptest.Server {
 
 		if r.URL.Path == "/layouts/test_layout" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<html>{{{VIEW_PROXY_CONTENT}}}</html>"))
+			w.Write([]byte("<html><view-proxy-content></view-proxy-content></html>"))
 		} else if r.URL.Path == "/header" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<body>"))
