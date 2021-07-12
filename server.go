@@ -55,8 +55,6 @@ type Server struct {
 	// A function to wrap request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
 	tracingConfig tracing.TracingConfig
-	// A function that is called when an error occurs in the viewproxy handler
-	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
 type routeContextKey struct{}
@@ -221,14 +219,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	results, err := req.Do(ctx)
 
 	if err != nil {
-		if s.OnError != nil {
-			s.OnError(w, r, err)
-			return
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("500 internal server error"))
-			return
-		}
+		panic(err)
 	}
 
 	resBuilder := newResponseBuilder(*s, w)

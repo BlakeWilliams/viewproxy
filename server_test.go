@@ -390,8 +390,8 @@ func TestSupportsGzip(t *testing.T) {
 func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
-	server := NewServer("http://fake.net")
-	server.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
+	server := NewServer(targetServer.URL)
+	server.Get("/hello/:name", NewFragment("/layouts/test_layout"), []*Fragment{NewFragment("/header")})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
@@ -415,31 +415,45 @@ func TestAroundRequestCallback(t *testing.T) {
 	<-done
 }
 
-func TestOnErrorHandler(t *testing.T) {
+func TestPanicsAreRescuable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	done := make(chan struct{})
 
 	server := NewServer(targetServer.URL)
 	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
-	server.AroundRequest = func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("x-viewproxy", "true")
-			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
-			next.ServeHTTP(w, r)
-		})
-	}
-	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
-		defer close(done)
-		var resultErr *ResultError
+	server.AroundRequest = func(handler http.Handler) http.Handler {
+		handler = func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("x-viewproxy", "true")
+				assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+				next.ServeHTTP(w, r)
+			})
+		}(handler)
 
-		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(
-			t,
-			fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
-			resultErr.Result.Url,
-		)
-		assert.Equal(t, 404, resultErr.Result.StatusCode)
+		handler = func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer func() {
+					if r := recover(); r != nil {
+						err := r.(error)
+						var resultErr *ResultError
+
+						assert.ErrorAs(t, err, &resultErr)
+						assert.Equal(
+							t,
+							fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
+							resultErr.Result.Url,
+						)
+						assert.Equal(t, 404, resultErr.Result.StatusCode)
+					}
+				}()
+				defer close(done)
+				next.ServeHTTP(w, r)
+
+			})
+		}(handler)
+
+		return handler
 	}
 
 	fakeWriter := httptest.NewRecorder()
@@ -448,6 +462,7 @@ func TestOnErrorHandler(t *testing.T) {
 
 	server.CreateHandler().ServeHTTP(fakeWriter, fakeRequest)
 
+	// assert.Equal(t, http.StatusInternalServerError, fakeWriter.StatusCode)
 	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 
 	select {
