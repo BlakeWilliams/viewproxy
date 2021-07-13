@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -454,6 +455,44 @@ func TestOnErrorHandler(t *testing.T) {
 	case <-ctx.Done():
 		assert.Fail(t, ctx.Err().Error())
 	}
+}
+
+type contextTestTripper struct {
+	route     *Route
+	fragments []*multiplexer.Fragment
+}
+
+func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
+	t.route = RouteFromContext(r.Context())
+	t.fragments = append(t.fragments, FragmentFromContext(r.Context()))
+	return http.DefaultClient.Do(r)
+}
+
+func TestRoundTripperContext(t *testing.T) {
+	viewProxyServer := NewServer(targetServer.URL)
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	tripper := &contextTestTripper{}
+	viewProxyServer.MultiplexerTripper = tripper
+
+	viewProxyServer.IgnoreHeader("etag")
+	layout := NewFragment("/layouts/test_layout")
+	fragments := []*Fragment{
+		NewFragment("header"),
+		NewFragment("body"),
+		NewFragment("footer"),
+	}
+	viewProxyServer.Get("/hello/:name", layout, fragments)
+
+	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.createHandler().ServeHTTP(w, r)
+
+	resp := w.Result()
+
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, 4, len(tripper.fragments))
+	assert.NotNil(t, tripper.route)
 }
 
 func startTargetServer() *httptest.Server {

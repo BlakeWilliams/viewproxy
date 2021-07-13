@@ -50,7 +50,8 @@ type Server struct {
 	HmacSecret string
 	// The transport passed to `http.Client` when fetching fragments or proxying
 	// requests.
-	HttpTransport http.RoundTripper
+	// HttpTransport      http.RoundTripper
+	MultiplexerTripper multiplexer.Tripper
 	// A function to wrap request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
 	tracingConfig tracing.TracingConfig
@@ -59,22 +60,21 @@ type Server struct {
 }
 
 type routeContextKey struct{}
-
 type parametersContextKey struct{}
 
 func NewServer(target string) *Server {
 	return &Server{
-		DefaultPageTitle: "viewproxy",
-		HttpTransport:    http.DefaultTransport,
-		Logger:           log.Default(),
-		Port:             3005,
-		ProxyTimeout:     time.Duration(10) * time.Second,
-		PassThrough:      false,
-		AroundRequest:    func(h http.Handler) http.Handler { return h },
-		target:           target,
-		ignoreHeaders:    make([]string, 0),
-		routes:           make([]Route, 0),
-		tracingConfig:    tracing.TracingConfig{Enabled: false},
+		DefaultPageTitle:   "viewproxy",
+		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
+		Logger:             log.Default(),
+		Port:               3005,
+		ProxyTimeout:       time.Duration(10) * time.Second,
+		PassThrough:        false,
+		AroundRequest:      func(h http.Handler) http.Handler { return h },
+		target:             target,
+		ignoreHeaders:      make([]string, 0),
+		routes:             make([]Route, 0),
+		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
 }
 
@@ -195,9 +195,8 @@ func (s *Server) createHandler() http.Handler {
 
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
 	s.Logger.Printf("Handling %s\n", r.URL.Path)
-	req := multiplexer.NewRequest()
+	req := multiplexer.NewRequest(s.MultiplexerTripper)
 	req.Timeout = s.ProxyTimeout
-	req.Transport = s.HttpTransport
 	req.HmacSecret = s.HmacSecret
 
 	for _, f := range route.FragmentsToRequest() {
@@ -256,9 +255,8 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req := multiplexer.NewRequest()
+		req := multiplexer.NewRequest(s.MultiplexerTripper)
 		req.Timeout = s.ProxyTimeout
-		req.Transport = s.HttpTransport
 		req.Non2xxErrors = false
 
 		req.WithHeadersFromRequest(r)
@@ -314,6 +312,10 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 		return parameters.(map[string]string)
 	}
 	return nil
+}
+
+func FragmentFromContext(ctx context.Context) *multiplexer.Fragment {
+	return multiplexer.FragmentFromContext(ctx)
 }
 
 func (s *Server) ListenAndServe() error {

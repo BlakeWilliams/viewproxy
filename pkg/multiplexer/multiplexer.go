@@ -20,33 +20,27 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type fragment struct {
-	url         string
-	metadata    map[string]string
-	timingLabel string
-}
-
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
 	layoutURL    string
-	fragments    []fragment
+	fragments    []Fragment
 	Timeout      time.Duration
 	HmacSecret   string
 	Non2xxErrors bool
-	Transport    http.RoundTripper
+	Tripper      Tripper
 }
 
-func NewRequest() *Request {
+func NewRequest(tripper Tripper) *Request {
 	return &Request{
 		ctx:          context.TODO(),
 		layoutURL:    "",
-		fragments:    []fragment{},
+		fragments:    []Fragment{},
 		Timeout:      time.Duration(10) * time.Second,
 		HmacSecret:   "",
 		Non2xxErrors: true,
-		Transport:    http.DefaultTransport,
 		Header:       http.Header{},
+		Tripper:      tripper,
 	}
 }
 
@@ -59,7 +53,7 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 }
 
 func (r *Request) WithFragment(fragmentURL string, metadata map[string]string, timingLabel string) {
-	r.fragments = append(r.fragments, fragment{url: fragmentURL, metadata: metadata, timingLabel: timingLabel})
+	r.fragments = append(r.fragments, Fragment{Url: fragmentURL, Metadata: metadata, timingLabel: timingLabel})
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -81,11 +75,13 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 	for _, f := range r.fragments {
 		wg.Add(1)
-		go func(ctx context.Context, f fragment, resultsCh chan *Result, wg *sync.WaitGroup) {
+		ctx = context.WithValue(ctx, FragmentContextKey{}, f)
+
+		go func(ctx context.Context, f Fragment, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
-			for key, value := range f.metadata {
+			for key, value := range f.Metadata {
 				span.SetAttributes(attribute.KeyValue{
 					Key:   attribute.Key(key),
 					Value: attribute.StringValue(value),
@@ -95,10 +91,10 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 			headersForRequest := r.Header
 			if r.HmacSecret != "" {
-				headersForRequest = r.headersWithHmac(f.url)
+				headersForRequest = r.headersWithHmac(f.Url)
 			}
 
-			result, err := r.fetchUrl(ctx, "GET", f.url, headersForRequest, nil)
+			result, err := r.fetchUrl(ctx, "GET", f.Url, headersForRequest, nil)
 
 			if err != nil {
 				errCh <- err
@@ -152,13 +148,7 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		}
 	}
 
-	client := &http.Client{
-		Transport: r.Transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	resp, err := client.Do(req)
+	resp, err := r.Tripper.Request(req)
 
 	if err != nil {
 		return nil, err
@@ -233,9 +223,9 @@ func pathFromFullUrl(fullUrl string) string {
 	}
 }
 
-func indexOfResult(fragments []fragment, result *Result) int {
+func indexOfResult(fragments []Fragment, result *Result) int {
 	for i, fragment := range fragments {
-		if fragment.url == result.Url {
+		if fragment.Url == result.Url {
 			return i
 		}
 	}
