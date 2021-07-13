@@ -37,7 +37,7 @@ func TestLoggingMiddleware(t *testing.T) {
 
 	log := &SliceLogger{logs: make([]string, 0)}
 	viewProxyServer.AroundRequest = func(handler http.Handler) http.Handler {
-		handler = LoggingMiddleware(viewProxyServer, log)(handler)
+		handler = Middleware(viewProxyServer, log)(handler)
 
 		return handler
 	}
@@ -135,6 +135,9 @@ func startTargetServer() *httptest.Server {
 			w.Write([]byte("<body>"))
 		} else if r.URL.Path == "/body" {
 			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
+		} else if r.URL.Path == "/boom" {
+			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
 		} else {
 			w.WriteHeader(http.StatusNotFound)

@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -31,7 +32,7 @@ func (rw *ResponseWrapper) WriteHeader(statusCode int) {
 	rw.responseWriter.WriteHeader(statusCode)
 }
 
-func LoggingMiddleware(server *viewproxy.Server, l logger) func(http.Handler) http.Handler {
+func Middleware(server *viewproxy.Server, l logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -73,6 +74,16 @@ func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
 	res, err := t.tripper.Request(r)
 	duration := time.Since(start)
 	fragment := viewproxy.FragmentFromContext(r.Context())
+
+	if err != nil {
+		if fragment != nil {
+			fmt.Println(err)
+			t.logger.Printf("Fragment exception in %dms for %s\nerror: %s", duration.Milliseconds(), fragment.Url, err)
+		} else {
+			t.logger.Printf("Proxy exception in %dms for %s\nerror: %s", duration.Milliseconds(), r.URL, err)
+		}
+		return nil, err
+	}
 
 	// If fragment is nil, we are proxying
 	if fragment != nil {

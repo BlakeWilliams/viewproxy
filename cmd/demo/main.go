@@ -3,11 +3,14 @@ package main
 import (
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/blakewilliams/viewproxy"
+	"github.com/blakewilliams/viewproxy/pkg/middleware/logging"
+	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
 func main() {
@@ -26,6 +29,15 @@ func main() {
 		viewproxy.NewFragment("hello"),
 		viewproxy.NewFragment("footer"),
 	})
+
+	// setup middleware
+	server.AroundRequest = func(handler http.Handler) http.Handler {
+		handler = logging.Middleware(server, server.Logger)(handler)
+
+		return handler
+	}
+
+	server.MultiplexerTripper = logging.NewLogTripper(server.Logger, multiplexer.NewStandardTripper(&http.Client{}))
 
 	server.ListenAndServe()
 }
