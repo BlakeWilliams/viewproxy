@@ -35,8 +35,8 @@ type Server struct {
 	ProxyTimeout     time.Duration
 	routes           []Route
 	target           string
-	Logger           logger
 	httpServer       *http.Server
+	Logger           logger
 	DefaultPageTitle string
 	ignoreHeaders    []string
 	PassThrough      bool
@@ -50,7 +50,8 @@ type Server struct {
 	HmacSecret string
 	// The transport passed to `http.Client` when fetching fragments or proxying
 	// requests.
-	HttpTransport http.RoundTripper
+	// HttpTransport      http.RoundTripper
+	MultiplexerTripper multiplexer.Tripper
 	// A function to wrap request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
 	tracingConfig tracing.TracingConfig
@@ -59,22 +60,21 @@ type Server struct {
 }
 
 type routeContextKey struct{}
-
 type parametersContextKey struct{}
 
 func NewServer(target string) *Server {
 	return &Server{
-		DefaultPageTitle: "viewproxy",
-		HttpTransport:    http.DefaultTransport,
-		Logger:           log.Default(),
-		Port:             3005,
-		ProxyTimeout:     time.Duration(10) * time.Second,
-		PassThrough:      false,
-		AroundRequest:    func(h http.Handler) http.Handler { return h },
-		target:           target,
-		ignoreHeaders:    make([]string, 0),
-		routes:           make([]Route, 0),
-		tracingConfig:    tracing.TracingConfig{Enabled: false},
+		DefaultPageTitle:   "viewproxy",
+		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
+		Logger:             log.Default(),
+		Port:               3005,
+		ProxyTimeout:       time.Duration(10) * time.Second,
+		PassThrough:        false,
+		AroundRequest:      func(h http.Handler) http.Handler { return h },
+		target:             target,
+		ignoreHeaders:      make([]string, 0),
+		routes:             make([]Route, 0),
+		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
 }
 
@@ -121,7 +121,6 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVe
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		s.Logger.Printf("Defining %s, with layout %s, for fragments %v\n", routeEntry.Url, routeEntry.Layout, routeEntry.Fragments)
 		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments)
 	}
 
@@ -189,15 +188,13 @@ func (s *Server) requestHandler() http.Handler {
 	})
 }
 
-func (s *Server) createHandler() http.Handler {
+func (s *Server) CreateHandler() http.Handler {
 	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
-	s.Logger.Printf("Handling %s\n", r.URL.Path)
-	req := multiplexer.NewRequest()
+	req := multiplexer.NewRequest(s.MultiplexerTripper)
 	req.Timeout = s.ProxyTimeout
-	req.Transport = s.HttpTransport
 	req.HmacSecret = s.HmacSecret
 
 	for _, f := range route.FragmentsToRequest() {
@@ -224,16 +221,10 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			s.OnError(w, r, err)
 			return
 		} else {
-			s.Logger.Printf("Errored %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("500 internal server error"))
 			return
 		}
-	}
-
-	s.Logger.Printf("Fetched layout %s in %v", results[0].Url, results[0].Duration)
-	for _, result := range results[1:] {
-		s.Logger.Printf("Fetched %s in %v", result.Url, result.Duration)
 	}
 
 	resBuilder := newResponseBuilder(*s, w)
@@ -256,9 +247,8 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req := multiplexer.NewRequest()
+		req := multiplexer.NewRequest(s.MultiplexerTripper)
 		req.Timeout = s.ProxyTimeout
-		req.Transport = s.HttpTransport
 		req.Non2xxErrors = false
 
 		req.WithHeadersFromRequest(r)
@@ -273,7 +263,6 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 			s.handleProxyError(err, w)
 			return
 		}
-		s.Logger.Printf("Proxied %s in %v", result.Url, result.Duration)
 
 		resBuilder := newResponseBuilder(*s, w)
 		resBuilder.StatusCode = result.StatusCode
@@ -282,14 +271,12 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 		resBuilder.SetFragments(results)
 		resBuilder.Write()
 	} else {
-		s.Logger.Printf("Rendering 404 for %s\n", r.URL.Path)
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
 	}
 }
 
 func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
-	s.Logger.Printf("Pass through error: %v", err)
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte("Internal Server Error"))
 }
@@ -316,6 +303,10 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
+func FragmentFromContext(ctx context.Context) *multiplexer.Fragment {
+	return multiplexer.FragmentFromContext(ctx)
+}
+
 func (s *Server) ListenAndServe() error {
 	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
 	if err != nil {
@@ -328,7 +319,7 @@ func (s *Server) ListenAndServe() error {
 
 	s.httpServer = &http.Server{
 		Addr:           fmt.Sprintf(":%d", s.Port),
-		Handler:        s.createHandler(),
+		Handler:        s.CreateHandler(),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
