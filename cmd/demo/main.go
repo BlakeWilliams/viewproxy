@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 func main() {
 	target := getTarget()
 	server := viewproxy.NewServer(target)
-	server.Port = getPort()
+	server.Addr = fmt.Sprintf("localhost:%d", getPort())
 	server.ProxyTimeout = time.Duration(5) * time.Second
 	server.Logger = buildLogger()
 	server.DefaultPageTitle = "Demo app"

@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 
 func TestServer(t *testing.T) {
 	viewProxyServer := NewServer(targetServer.URL)
-	viewProxyServer.Port = 9998
+	viewProxyServer.Addr = "localhost:9998"
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.IgnoreHeader("etag")

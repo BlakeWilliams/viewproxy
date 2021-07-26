@@ -31,7 +31,7 @@ type logger interface {
 }
 
 type Server struct {
-	Port             int
+	Addr             string
 	ProxyTimeout     time.Duration
 	routes           []Route
 	target           string
@@ -67,7 +67,7 @@ func NewServer(target string) *Server {
 		DefaultPageTitle:   "viewproxy",
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
-		Port:               3005,
+		Addr:               "localhost:3005",
 		ProxyTimeout:       time.Duration(10) * time.Second,
 		PassThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
@@ -318,14 +318,14 @@ func (s *Server) ListenAndServe() error {
 	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{
-		Addr:           fmt.Sprintf(":%d", s.Port),
+		Addr:           s.Addr,
 		Handler:        s.CreateHandler(),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	s.Logger.Printf("Listening on port %d\n", s.Port)
+	s.Logger.Printf("Listening on %v", s.Addr)
 
 	return s.httpServer.ListenAndServe()
 }
