@@ -9,14 +9,16 @@ type Route struct {
 	Parts     []string
 	Layout    *Fragment
 	fragments []*Fragment
+	Metadata  map[string]string
 }
 
-func newRoute(path string, layout *Fragment, fragments []*Fragment) *Route {
+func newRoute(path string, metadata map[string]string, layout *Fragment, fragments []*Fragment) *Route {
 	return &Route{
 		Path:      path,
 		Parts:     strings.Split(path, "/"),
 		Layout:    layout,
 		fragments: fragments,
+		Metadata:  metadata,
 	}
 }
 
