@@ -79,7 +79,11 @@ func NewServer(target string) *Server {
 }
 
 func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
-	route := newRoute(path, layout, fragments)
+	s.GetWithMetadata(path, layout, fragments, map[string]string{})
+}
+
+func (s *Server) GetWithMetadata(path string, layout *Fragment, fragments []*Fragment, metadata map[string]string) {
+	route := newRoute(path, metadata, layout, fragments)
 
 	layout.PreloadUrl(s.target)
 	for _, fragment := range fragments {
@@ -121,7 +125,7 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVe
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments)
+		s.GetWithMetadata(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, routeEntry.Metadata)
 	}
 
 	return nil
