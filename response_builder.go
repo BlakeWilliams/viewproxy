@@ -25,13 +25,11 @@ func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 
 func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexer.Result) {
 	for name, values := range headers {
-		for _, value := range values {
-			rb.writer.Header().Add(name, value)
+		if !rb.server.ignoreHeaders[http.CanonicalHeaderKey(name)] {
+			for _, value := range values {
+				rb.writer.Header().Add(name, value)
+			}
 		}
-	}
-
-	for _, ignoredHeader := range rb.server.ignoreHeaders {
-		rb.writer.Header().Del(ignoredHeader)
 	}
 
 	if len(results) > 1 {

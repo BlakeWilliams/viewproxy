@@ -38,7 +38,7 @@ type Server struct {
 	httpServer       *http.Server
 	Logger           logger
 	DefaultPageTitle string
-	ignoreHeaders    []string
+	ignoreHeaders    map[string]bool
 	PassThrough      bool
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
@@ -72,7 +72,7 @@ func NewServer(target string) *Server {
 		PassThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
 		target:             target,
-		ignoreHeaders:      make([]string, 0),
+		ignoreHeaders:      make(map[string]bool, 0),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
@@ -94,7 +94,7 @@ func (s *Server) GetWithMetadata(path string, layout *Fragment, fragments []*Fra
 }
 
 func (s *Server) IgnoreHeader(name string) {
-	s.ignoreHeaders = append(s.ignoreHeaders, name)
+	s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
 }
 
 func (s *Server) LoadRoutesFromFile(filePath string) error {
