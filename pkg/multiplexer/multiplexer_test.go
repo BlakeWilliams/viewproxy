@@ -163,7 +163,7 @@ func startServer() *http.Server {
 		}
 	})
 
-	testServer := &http.Server{Addr: ":9990", Handler: instance}
+	testServer := &http.Server{Addr: "localhost:9990", Handler: instance}
 	go func() {
 		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
