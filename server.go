@@ -314,12 +314,14 @@ func FragmentFromContext(ctx context.Context) *multiplexer.Fragment {
 
 func (s *Server) ListenAndServe() error {
 	return s.configureServer(func() error {
+		s.Logger.Printf("Listening on %v", s.Addr)
 		return s.httpServer.ListenAndServe()
 	})
 }
 
 func (s *Server) Serve(listener net.Listener) error {
 	return s.configureServer(func() error {
+		s.Logger.Printf("Listening on %v", listener.Addr())
 		return s.httpServer.Serve(listener)
 	})
 }
@@ -341,8 +343,6 @@ func (s *Server) configureServer(serveFn func() error) error {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-
-	s.Logger.Printf("Listening on %v", s.Addr)
 
 	return serveFn()
 }
