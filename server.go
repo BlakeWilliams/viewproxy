@@ -197,6 +197,7 @@ func (s *Server) CreateHandler() http.Handler {
 }
 
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
+	start_time := time.Now()
 	req := multiplexer.NewRequest(s.MultiplexerTripper)
 	req.Timeout = s.ProxyTimeout
 	req.HmacSecret = s.HmacSecret
@@ -235,6 +236,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	resBuilder.SetLayout(results[0])
 	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
 	resBuilder.SetFragments(results[1:])
+	elapsed := time.Since(start_time)
+	resBuilder.SetDuration(elapsed.Milliseconds())
 	resBuilder.Write()
 }
 
