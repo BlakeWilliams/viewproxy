@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"net/http"
+	"strconv"
 
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
@@ -61,6 +62,11 @@ func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 
 		rb.body = outputHtml
 	}
+}
+
+func (rb *responseBuilder) SetDuration(duration int64) {
+	outputHtml := bytes.Replace(rb.body, []byte("<view-proxy-timing></view-proxy-timing>"), []byte(strconv.FormatInt(duration, 10)), 1)
+	rb.body = outputHtml
 }
 
 func (rb *responseBuilder) Write() {
