@@ -16,6 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const (
+	HeaderViewProxyOriginalPath = "X-Viewproxy-Original-Path"
+)
+
 // Re-export ResultError for convenience
 type ResultError = multiplexer.ResultError
 
@@ -220,6 +224,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	}
 
 	req.WithHeadersFromRequest(r)
+	req.Header.Add(HeaderViewProxyOriginalPath, r.URL.RequestURI())
 	results, err := req.Do(ctx)
 
 	if err != nil {
