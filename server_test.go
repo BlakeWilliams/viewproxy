@@ -311,6 +311,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 			defer close(fragmentDone)
 			w.Header().Set("Server-Timing", "db;dur=34")
 		}
+		assert.Equal(t, r.Header.Get(HeaderViewProxyOriginalPath), "/hello/world?foo=bar")
 		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
 		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
 		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
@@ -324,7 +325,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	fragment.TimingLabel = "bar"
 	viewProxyServer.Get("/hello/:name", layout, []*Fragment{fragment})
 
-	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
+	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
 	r.RemoteAddr = "localhost:1"
 	w := httptest.NewRecorder()
