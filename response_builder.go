@@ -33,7 +33,7 @@ func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexe
 		}
 	}
 
-	if len(results) > 1 {
+	if len(results) > 1 && headers.Get(HeaderViewProxyTimingEnabled) == "1" {
 		multiplexer.SetCombinedServerTimingHeader(results, rb.writer)
 	}
 }

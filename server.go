@@ -16,6 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const (
+	HeaderViewProxyTimingEnabled = "X-Viewproxy-Timing-Enabled"
+)
+
 // Re-export ResultError for convenience
 type ResultError = multiplexer.ResultError
 

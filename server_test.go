@@ -304,6 +304,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	fragmentDone := make(chan bool)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(HeaderViewProxyTimingEnabled, "1")
 		if r.URL.Path == "/foo" {
 			defer close(layoutDone)
 			w.Header().Set("Server-Timing", "db;dur=12, git;dur=0")
@@ -340,6 +341,39 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
 	assert.Contains(t, resp.Header.Get("Server-Timing"), "foo-fragment;desc=\"foo fragment\";dur=")
 	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-fragment;desc=\"bar fragment\";dur=")
+
+	server.Close()
+}
+
+func TestServerDoesNotSendTimingHeadersByDefault(t *testing.T) {
+	layoutDone := make(chan bool)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/foo" {
+			defer close(layoutDone)
+			w.Header().Set("Server-Timing", "db;dur=12, git;dur=0")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	viewProxyServer := NewServer(server.URL)
+	layout := NewFragment("/foo")
+	layout.TimingLabel = "foo"
+	viewProxyServer.Get("/hello/:name", layout, []*Fragment{})
+
+	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
+	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
+	r.RemoteAddr = "localhost:1"
+	w := httptest.NewRecorder()
+
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+
+	<-layoutDone
+
+	resp := w.Result()
+
+	assert.NotContains(t, resp.Header.Get("Server-Timing"), "foo-db;desc=\"foo db\";dur=12")
+	assert.NotContains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
 
 	server.Close()
 }
