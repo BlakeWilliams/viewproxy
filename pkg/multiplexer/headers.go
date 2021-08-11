@@ -42,8 +42,13 @@ func HeadersFromRequest(req *http.Request) http.Header {
 	// go strips the host header for some reason
 	// https://github.com/golang/go/blob/master/src/net/http/server.go#L999
 	newHeaders.Set("Host", req.Host)
-	newHeaders.Set("X-Forwarded-Host", req.Host)
-	newHeaders.Set("X-Forwarded-Proto", req.Proto)
+
+	if val := newHeaders.Get("X-Forwarded-Host"); val == "" {
+		newHeaders.Set("X-Forwarded-Host", req.Host)
+	}
+	if val := newHeaders.Get("X-Forwarded-Proto"); val == "" {
+		newHeaders.Set("X-Forwarded-Proto", req.Proto)
+	}
 
 	return newHeaders
 }
