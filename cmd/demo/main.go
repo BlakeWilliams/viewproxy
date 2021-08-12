@@ -38,7 +38,11 @@ func main() {
 		return handler
 	}
 
-	server.MultiplexerTripper = logging.NewLogTripper(server.Logger, multiplexer.NewStandardTripper(&http.Client{}))
+	server.MultiplexerTripper = logging.NewLogTripper(
+		server.Logger,
+		server.LogFilter,
+		multiplexer.NewStandardTripper(&http.Client{}),
+	)
 
 	server.ListenAndServe()
 }

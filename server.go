@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/internal/tracing"
+	"github.com/blakewilliams/viewproxy/pkg/logfilter"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -45,6 +46,7 @@ type Server struct {
 	DefaultPageTitle string
 	ignoreHeaders    map[string]bool
 	PassThrough      bool
+	LogFilter        logfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
 	//
@@ -72,6 +74,7 @@ func NewServer(target string) *Server {
 		DefaultPageTitle:   "viewproxy",
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
+		LogFilter:          logfilter.New(),
 		Addr:               "localhost:3005",
 		ProxyTimeout:       time.Duration(10) * time.Second,
 		PassThrough:        false,
