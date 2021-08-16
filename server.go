@@ -12,7 +12,7 @@ import (
 
 	"github.com/blakewilliams/viewproxy/internal/tracing"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
-	secretfilter "github.com/blakewilliams/viewproxy/pkg/secretfilter"
+	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
