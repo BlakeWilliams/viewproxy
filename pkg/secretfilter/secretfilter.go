@@ -11,7 +11,6 @@ type Filter interface {
 	FilterURL(url *url.URL) *url.URL
 	FilterURLString(url string) string
 	FilterQueryParams(params url.Values) url.Values
-	SubFilter() Filter
 }
 
 type mapKey struct{}
@@ -75,8 +74,4 @@ func (l *secretFilter) FilterQueryParams(query url.Values) url.Values {
 	}
 
 	return filteredQueryParams
-}
-
-func (l *secretFilter) SubFilter() Filter {
-	return &secretFilter{allowedMap: l.allowedMap}
 }
