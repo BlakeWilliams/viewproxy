@@ -1,12 +1,12 @@
 package logging
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/blakewilliams/viewproxy"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
+	secretfilter "github.com/blakewilliams/viewproxy/pkg/secretfilter"
 )
 
 type logger interface {
@@ -61,12 +61,13 @@ func Middleware(server *viewproxy.Server, l logger) func(http.Handler) http.Hand
 }
 
 type logTripper struct {
-	logger  logger
-	tripper multiplexer.Tripper
+	logger       logger
+	secretFilter secretfilter.Filter
+	tripper      multiplexer.Tripper
 }
 
-func NewLogTripper(l logger, tripper multiplexer.Tripper) multiplexer.Tripper {
-	return &logTripper{logger: l, tripper: tripper}
+func NewLogTripper(l logger, sf secretfilter.Filter, tripper multiplexer.Tripper) multiplexer.Tripper {
+	return &logTripper{logger: l, secretFilter: sf, tripper: tripper}
 }
 
 func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
@@ -77,19 +78,22 @@ func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
 
 	if err != nil {
 		if fragment != nil {
-			fmt.Println(err)
-			t.logger.Printf("Fragment exception in %dms for %s\nerror: %s", duration.Milliseconds(), fragment.Url, err)
+			safeUrl := t.secretFilter.FilterURLString(fragment.Url)
+			t.logger.Printf("Fragment exception in %dms for %s\nerror: %s", duration.Milliseconds(), safeUrl, err)
 		} else {
-			t.logger.Printf("Proxy exception in %dms for %s\nerror: %s", duration.Milliseconds(), r.URL, err)
+			safeUrl := t.secretFilter.FilterURL(r.URL)
+			t.logger.Printf("Proxy exception in %dms for %s\nerror: %s", duration.Milliseconds(), safeUrl, err)
 		}
 		return nil, err
 	}
 
 	// If fragment is nil, we are proxying
 	if fragment != nil {
-		t.logger.Printf("Fragment %d in %dms for %s", res.StatusCode, duration.Milliseconds(), fragment.Url)
+		safeUrl := t.secretFilter.FilterURLString(fragment.Url)
+		t.logger.Printf("Fragment %d in %dms for %s", res.StatusCode, duration.Milliseconds(), safeUrl)
 	} else {
-		t.logger.Printf("Proxy request %d in %dms for %s", res.StatusCode, duration.Milliseconds(), r.URL)
+		safeUrl := t.secretFilter.FilterURL(r.URL)
+		t.logger.Printf("Proxy request %d in %dms for %s", res.StatusCode, duration.Milliseconds(), safeUrl)
 	}
 
 	return res, err

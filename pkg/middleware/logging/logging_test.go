@@ -9,6 +9,7 @@ import (
 
 	"github.com/blakewilliams/viewproxy"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
+	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -85,7 +86,7 @@ func TestLogTripperFragments(t *testing.T) {
 	viewProxyServer.Get("/hello/:name", layout, fragments)
 
 	log := &SliceLogger{logs: make([]string, 0)}
-	viewProxyServer.MultiplexerTripper = NewLogTripper(log, multiplexer.NewStandardTripper(&http.Client{}))
+	viewProxyServer.MultiplexerTripper = NewLogTripper(log, secretfilter.New(), multiplexer.NewStandardTripper(&http.Client{}))
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
@@ -111,7 +112,7 @@ func TestLogTripperProxy(t *testing.T) {
 	viewProxyServer.Get("/hello/:name", layout, fragments)
 
 	log := &SliceLogger{logs: make([]string, 0)}
-	viewProxyServer.MultiplexerTripper = NewLogTripper(log, multiplexer.NewStandardTripper(&http.Client{}))
+	viewProxyServer.MultiplexerTripper = NewLogTripper(log, secretfilter.New(), multiplexer.NewStandardTripper(&http.Client{}))
 
 	r := httptest.NewRequest("GET", "/fake", nil)
 	w := httptest.NewRecorder()
