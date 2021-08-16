@@ -61,7 +61,7 @@ func (l *logFilter) FilterURL(originalUrl *url.URL) *url.URL {
 }
 
 func (l *logFilter) FilterQueryParams(query url.Values) url.Values {
-	filteredQueryParams := make(url.Values)
+	filteredQueryParams := make(url.Values, len(query))
 
 	for key, values := range query {
 		for _, value := range values {
