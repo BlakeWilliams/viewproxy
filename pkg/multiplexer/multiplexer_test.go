@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,6 +65,7 @@ func TestFetch404ReturnsError(t *testing.T) {
 	server := startServer(t)
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
+	r.SecretFilter = secretfilter.New()
 	r.WithFragment("http://localhost:9990/wowomg", make(map[string]string), "")
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
@@ -77,12 +79,29 @@ func TestFetch404ReturnsError(t *testing.T) {
 	server.Close()
 }
 
+func TestResultErrorMessagesFilterUrls(t *testing.T) {
+	server := startServer(t)
+
+	r := NewRequest(NewStandardTripper(&http.Client{}))
+	r.SecretFilter = secretfilter.New()
+	r.WithFragment("http://localhost:9990/wowomg?foo=bar", make(map[string]string), "")
+	r.Timeout = defaultTimeout
+	_, err := r.Do(context.TODO())
+
+	var resultErr *ResultError
+	assert.ErrorAs(t, err, &resultErr)
+	assert.Equal(t, "status: 404 url: http://localhost:9990/wowomg?foo=FILTERED", resultErr.Error())
+
+	server.Close()
+}
+
 func TestFetch500ReturnsError(t *testing.T) {
 	server := startServer(t)
 	start := time.Now()
 
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
 	r := NewRequest(NewStandardTripper(&http.Client{}))
+	r.SecretFilter = secretfilter.New()
 	r.WithFragment(urls[0], make(map[string]string), "")
 	r.WithFragment(urls[1], make(map[string]string), "")
 	results, err := r.Do(context.TODO())

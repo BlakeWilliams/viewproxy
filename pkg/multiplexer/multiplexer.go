@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,6 +30,7 @@ type Request struct {
 	HmacSecret   string
 	Non2xxErrors bool
 	Tripper      Tripper
+	SecretFilter secretfilter.Filter
 }
 
 func NewRequest(tripper Tripper) *Request {
@@ -184,11 +186,7 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 	}
 
 	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
-		err := &ResultError{
-			Result: result,
-		}
-
-		return nil, err
+		return nil, newResultError(r, result)
 	}
 
 	return result, nil

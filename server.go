@@ -204,10 +204,16 @@ func (s *Server) CreateHandler() http.Handler {
 	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
+func (s *Server) newRequest() *multiplexer.Request {
+	req := multiplexer.NewRequest(s.MultiplexerTripper)
+	req.SecretFilter = s.SecretFilter
+	req.Timeout = s.ProxyTimeout
+	return req
+}
+
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
 	startTime := time.Now()
-	req := multiplexer.NewRequest(s.MultiplexerTripper)
-	req.Timeout = s.ProxyTimeout
+	req := s.newRequest()
 	req.HmacSecret = s.HmacSecret
 
 	for _, f := range route.FragmentsToRequest() {
@@ -263,8 +269,7 @@ func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req := multiplexer.NewRequest(s.MultiplexerTripper)
-		req.Timeout = s.ProxyTimeout
+		req := s.newRequest()
 		req.Non2xxErrors = false
 
 		req.WithHeadersFromRequest(r)
