@@ -54,6 +54,11 @@ func TestLogFilter_FilterUrlString(t *testing.T) {
 			allow: []string{"a"},
 			want:  "/foo/bar?A=1&b=FILTERED",
 		},
+		"invalid url": {
+			input: "http://%41:8080/",
+			allow: []string{},
+			want:  "FILTERED_INVALID_URL",
+		},
 	}
 
 	for name, tc := range tests {

@@ -41,14 +41,14 @@ func (l *logFilter) FilterURLString(urlString string) string {
 	parsedUrl, err := url.Parse(urlString)
 
 	if err != nil {
-		return urlString
+		return "FILTERED_INVALID_URL"
 	}
 
 	return l.FilterURL(parsedUrl).String()
 }
 
 func (l *logFilter) FilterURL(originalUrl *url.URL) *url.URL {
-	clonedUrl := *originalUrl
+	clonedUrl, _ := url.Parse(originalUrl.String())
 
 	if clonedUrl.User != nil {
 		clonedUrl.User = url.UserPassword("FILTERED", "FILTERED")
@@ -57,7 +57,7 @@ func (l *logFilter) FilterURL(originalUrl *url.URL) *url.URL {
 	filteredParams := l.FilterQueryParams(clonedUrl.Query())
 	clonedUrl.RawQuery = filteredParams.Encode()
 
-	return &clonedUrl
+	return clonedUrl
 }
 
 func (l *logFilter) FilterQueryParams(query url.Values) url.Values {
