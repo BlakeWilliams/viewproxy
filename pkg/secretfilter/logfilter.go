@@ -1,4 +1,4 @@
-package logfilter
+package secretfilter
 
 import (
 	"net/url"
@@ -11,25 +11,26 @@ type Filter interface {
 	FilterURL(url *url.URL) *url.URL
 	FilterURLString(url string) string
 	FilterQueryParams(params url.Values) url.Values
+	SubFilter() Filter
 }
 
 type mapKey struct{}
 
-type logFilter struct {
+type secretFilter struct {
 	allowedMap map[string]mapKey
 }
 
-var _ Filter = &logFilter{}
+var _ Filter = &secretFilter{}
 
 func New() Filter {
-	return &logFilter{allowedMap: make(map[string]mapKey)}
+	return &secretFilter{allowedMap: make(map[string]mapKey)}
 }
 
-func (l *logFilter) Allow(key string) {
+func (l *secretFilter) Allow(key string) {
 	l.allowedMap[strings.ToLower(key)] = mapKey{}
 }
 
-func (l *logFilter) IsAllowed(key string) bool {
+func (l *secretFilter) IsAllowed(key string) bool {
 	if _, ok := l.allowedMap[strings.ToLower(key)]; ok {
 		return true
 	}
@@ -37,7 +38,7 @@ func (l *logFilter) IsAllowed(key string) bool {
 	return false
 }
 
-func (l *logFilter) FilterURLString(urlString string) string {
+func (l *secretFilter) FilterURLString(urlString string) string {
 	parsedUrl, err := url.Parse(urlString)
 
 	if err != nil {
@@ -47,7 +48,7 @@ func (l *logFilter) FilterURLString(urlString string) string {
 	return l.FilterURL(parsedUrl).String()
 }
 
-func (l *logFilter) FilterURL(originalUrl *url.URL) *url.URL {
+func (l *secretFilter) FilterURL(originalUrl *url.URL) *url.URL {
 	clonedUrl, _ := url.Parse(originalUrl.String())
 
 	if clonedUrl.User != nil {
@@ -60,7 +61,7 @@ func (l *logFilter) FilterURL(originalUrl *url.URL) *url.URL {
 	return clonedUrl
 }
 
-func (l *logFilter) FilterQueryParams(query url.Values) url.Values {
+func (l *secretFilter) FilterQueryParams(query url.Values) url.Values {
 	filteredQueryParams := make(url.Values, len(query))
 
 	for key, values := range query {
@@ -74,4 +75,8 @@ func (l *logFilter) FilterQueryParams(query url.Values) url.Values {
 	}
 
 	return filteredQueryParams
+}
+
+func (l *secretFilter) SubFilter() Filter {
+	return &secretFilter{allowedMap: l.allowedMap}
 }

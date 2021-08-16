@@ -1,4 +1,4 @@
-package logfilter
+package secretfilter
 
 import (
 	"net/url"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogFilter_FilterUrl(t *testing.T) {
+func TestSecretFilter_FilterUrl(t *testing.T) {
 	original, err := url.Parse("http://localhost/foo?a=1")
 	require.NoError(t, err)
 
@@ -18,7 +18,7 @@ func TestLogFilter_FilterUrl(t *testing.T) {
 	require.Equal(t, "http://localhost/foo?a=FILTERED", filtered.String())
 }
 
-func TestLogFilter_FilterUrlUserInfo(t *testing.T) {
+func TestSecretFilter_FilterUrlUserInfo(t *testing.T) {
 	original, err := url.Parse("http://foo:password@localhost/foo?a=1")
 	require.NoError(t, err)
 
@@ -28,7 +28,7 @@ func TestLogFilter_FilterUrlUserInfo(t *testing.T) {
 	require.Equal(t, "http://FILTERED:FILTERED@localhost/foo?a=FILTERED", filtered.String())
 }
 
-func TestLogFilter_FilterUrlString(t *testing.T) {
+func TestSecretFilter_FilterUrlString(t *testing.T) {
 	tests := map[string]struct {
 		input string
 		allow []string
@@ -73,7 +73,7 @@ func TestLogFilter_FilterUrlString(t *testing.T) {
 	}
 }
 
-func TestLogFilter_FilterQueryParams(t *testing.T) {
+func TestSecretFilter_FilterQueryParams(t *testing.T) {
 	tests := map[string]struct {
 		input url.Values
 		allow []string

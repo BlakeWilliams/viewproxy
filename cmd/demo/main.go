@@ -40,7 +40,7 @@ func main() {
 
 	server.MultiplexerTripper = logging.NewLogTripper(
 		server.Logger,
-		server.LogFilter,
+		server.SecretFilter,
 		multiplexer.NewStandardTripper(&http.Client{}),
 	)
 
