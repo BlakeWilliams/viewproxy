@@ -41,7 +41,7 @@ func (l *logFilter) FilterURLString(urlString string) string {
 	parsedUrl, err := url.Parse(urlString)
 
 	if err != nil {
-		return "FILTERED_INVALID_URL"
+		return "FILTEREDINVALIDURL"
 	}
 
 	return l.FilterURL(parsedUrl).String()
