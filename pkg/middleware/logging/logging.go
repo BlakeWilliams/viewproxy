@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
