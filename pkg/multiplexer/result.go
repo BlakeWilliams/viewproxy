@@ -8,14 +8,18 @@ import (
 
 type ResultError struct {
 	Result *Result
+	msg    string
+}
+
+func newResultError(req *Request, res *Result) *ResultError {
+	safeUrl := req.SecretFilter.FilterURLString(res.Url)
+	msg := fmt.Sprintf("status: %d url: %s", res.StatusCode, safeUrl)
+
+	return &ResultError{Result: res, msg: msg}
 }
 
 func (re *ResultError) Error() string {
-	return fmt.Sprintf(
-		"status: %d url: %s",
-		re.Result.StatusCode,
-		re.Result.Url,
-	)
+	return re.msg
 }
 
 type Result struct {
