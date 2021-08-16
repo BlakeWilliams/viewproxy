@@ -79,7 +79,6 @@ func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
 
 	if err != nil {
 		if fragment != nil {
-			fmt.Println(err)
 			safeUrl := t.logFilter.FilterURLString(fragment.Url)
 			t.logger.Printf("Fragment exception in %dms for %s\nerror: %s", duration.Milliseconds(), safeUrl, err)
 		} else {
