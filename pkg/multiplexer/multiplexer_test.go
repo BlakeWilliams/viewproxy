@@ -3,6 +3,7 @@ package multiplexer
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 var defaultTimeout = time.Duration(5) * time.Second
 
 func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
@@ -40,7 +41,7 @@ func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
 }
 
 func TestRequestDoForwardsHeaders(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 	headers := http.Header{}
 	headers.Add("X-Name", "viewproxy")
 
@@ -60,7 +61,7 @@ func TestRequestDoForwardsHeaders(t *testing.T) {
 }
 
 func TestFetch404ReturnsError(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
 	r.WithFragment("http://localhost:9990/wowomg", make(map[string]string), "")
@@ -77,7 +78,7 @@ func TestFetch404ReturnsError(t *testing.T) {
 }
 
 func TestFetch500ReturnsError(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 	start := time.Now()
 
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
@@ -99,7 +100,7 @@ func TestFetch500ReturnsError(t *testing.T) {
 }
 
 func TestFetchTimeout(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 	start := time.Now()
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
@@ -115,7 +116,7 @@ func TestFetchTimeout(t *testing.T) {
 }
 
 func TestCanIgnoreNon2xxErrors(t *testing.T) {
-	server := startServer()
+	server := startServer(t)
 
 	ctx := context.Background()
 	r := NewRequest(NewStandardTripper(&http.Client{}))
@@ -132,7 +133,7 @@ func TestCanIgnoreNon2xxErrors(t *testing.T) {
 	server.Close()
 }
 
-func startServer() *http.Server {
+func startServer(t *testing.T) *http.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 		fragment := params.Get("fragment")
@@ -163,10 +164,13 @@ func startServer() *http.Server {
 		}
 	})
 
-	testServer := &http.Server{Addr: "localhost:9990", Handler: instance}
+	listener, err := net.Listen("tcp", "localhost:9990")
+	assert.NoError(t, err)
+
+	testServer := &http.Server{Handler: instance}
 	go func() {
-		if err := testServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
+		if err := testServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			assert.NoError(t, err)
 		}
 	}()
 
