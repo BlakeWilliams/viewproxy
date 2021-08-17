@@ -17,7 +17,6 @@ import "github.com/blakewilliams/viewproxy"
 server := viewproxy.NewServer(target)
 server.Port = 3005
 server.ProxyTimeout = time.Duration(5) * time.Second
-server.DefaultPageTitle = "Demo app"
 server.IgnoreHeader("etag")
 server.PassThrough = true
 

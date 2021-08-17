@@ -37,16 +37,15 @@ type logger interface {
 }
 
 type Server struct {
-	Addr             string
-	ProxyTimeout     time.Duration
-	routes           []Route
-	target           string
-	httpServer       *http.Server
-	Logger           logger
-	DefaultPageTitle string
-	ignoreHeaders    map[string]bool
-	PassThrough      bool
-	SecretFilter     secretfilter.Filter
+	Addr          string
+	ProxyTimeout  time.Duration
+	routes        []Route
+	target        string
+	httpServer    *http.Server
+	Logger        logger
+	ignoreHeaders map[string]bool
+	PassThrough   bool
+	SecretFilter  secretfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
 	//
@@ -71,7 +70,6 @@ type parametersContextKey struct{}
 
 func NewServer(target string) *Server {
 	return &Server{
-		DefaultPageTitle:   "viewproxy",
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
 		SecretFilter:       secretfilter.New(),
