@@ -40,25 +40,15 @@ func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexe
 
 func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
 	var contentHtml []byte
-	var pageTitle string
 
 	for _, result := range results {
 		contentHtml = append(contentHtml, result.Body...)
-
-		if result.HttpResponse.Header.Get("X-View-Proxy-Title") != "" {
-			pageTitle = result.HttpResponse.Header.Get("X-View-Proxy-Title")
-		}
-	}
-
-	if pageTitle == "" {
-		pageTitle = rb.server.DefaultPageTitle
 	}
 
 	if len(rb.body) == 0 {
 		rb.body = contentHtml
 	} else {
 		outputHtml := bytes.Replace(rb.body, []byte("<view-proxy-content></view-proxy-content>"), contentHtml, 1)
-		outputHtml = bytes.Replace(outputHtml, []byte("{{{VIEW_PROXY_PAGE_TITLE}}}"), []byte(pageTitle), 1)
 
 		rb.body = outputHtml
 	}

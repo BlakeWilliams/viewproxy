@@ -20,7 +20,6 @@ func main() {
 	server.Addr = fmt.Sprintf("localhost:%d", getPort())
 	server.ProxyTimeout = time.Duration(5) * time.Second
 	server.Logger = buildLogger()
-	server.DefaultPageTitle = "Demo app"
 	server.IgnoreHeader("etag")
 	server.PassThrough = true
 
