@@ -21,6 +21,25 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+type ErrTimeout struct {
+	inner error
+}
+
+func (et *ErrTimeout) Error() string {
+	return fmt.Sprintf("multiplexer timed out: %s", et.inner)
+}
+
+func (et *ErrTimeout) Unwrap() error {
+	return et.inner
+}
+
+// Ensure we adhere to the error interface
+var _ error = &ErrTimeout{}
+
+func newErrTimeout(inner error) *ErrTimeout {
+	return &ErrTimeout{inner: inner}
+}
+
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
@@ -132,7 +151,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 		return results, nil
 	case <-ctx.Done():
-		return make([]*Result, 0), ctx.Err()
+		return make([]*Result, 0), newErrTimeout(ctx.Err())
 	}
 }
 

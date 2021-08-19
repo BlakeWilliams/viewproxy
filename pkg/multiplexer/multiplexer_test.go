@@ -2,6 +2,7 @@ package multiplexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -128,7 +129,7 @@ func TestFetchTimeout(t *testing.T) {
 	_, err := r.Do(context.Background())
 	duration := time.Since(start)
 
-	assert.EqualError(t, err, "context deadline exceeded")
+	assert.EqualError(t, err, "multiplexer timed out: context deadline exceeded")
 	assert.Less(t, duration, time.Duration(120)*time.Millisecond)
 
 	server.Close()
@@ -194,4 +195,12 @@ func startServer(t *testing.T) *http.Server {
 	}()
 
 	return testServer
+}
+
+func TestErrTimeout(t *testing.T) {
+	originalError := errors.New("omg")
+	err := newErrTimeout(originalError)
+
+	assert.Equal(t, "multiplexer timed out: omg", err.Error())
+	assert.Equal(t, originalError, err.Unwrap())
 }
