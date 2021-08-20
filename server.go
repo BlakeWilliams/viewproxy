@@ -227,7 +227,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithFragment(f.UrlWithParams(query), f.Metadata, f.TimingLabel)
+		req.WithFragment(f.IntoRequestable(query))
 	}
 
 	req.WithHeadersFromRequest(r)
@@ -322,8 +322,18 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
-func FragmentFromContext(ctx context.Context) *multiplexer.FragmentRequest {
-	return multiplexer.FragmentFromContext(ctx)
+func FragmentRouteFromContext(ctx context.Context) *FragmentRoute {
+	requestable := multiplexer.RequestableFromContext(ctx)
+
+	if requestable == nil {
+		return nil
+	}
+
+	if fragment, ok := requestable.(*fragmentRequest); ok {
+		return fragment.fragmentRoute
+	}
+
+	return nil
 }
 
 func (s *Server) ListenAndServe() error {

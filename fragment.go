@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
 type FragmentRoute struct {
@@ -35,6 +37,13 @@ func (f *FragmentRoute) UrlWithParams(parameters url.Values) string {
 	return targetUrl.String()
 }
 
+func (f *FragmentRoute) IntoRequestable(params url.Values) multiplexer.Requestable {
+	return &fragmentRequest{
+		url:           f.UrlWithParams(params),
+		fragmentRoute: f,
+	}
+}
+
 func (f *FragmentRoute) PreloadUrl(target string) {
 	targetUrl, err := url.Parse(
 		fmt.Sprintf("%s/%s", strings.TrimRight(target, "/"), strings.TrimLeft(f.Path, "/")),
@@ -47,3 +56,14 @@ func (f *FragmentRoute) PreloadUrl(target string) {
 
 	f.Url = targetUrl.String()
 }
+
+type fragmentRequest struct {
+	url           string
+	fragmentRoute *FragmentRoute
+}
+
+var _ multiplexer.Requestable = &fragmentRequest{}
+
+func (fr *fragmentRequest) URL() string                 { return fr.url }
+func (fr *fragmentRequest) Metadata() map[string]string { return fr.fragmentRoute.Metadata }
+func (fr *fragmentRequest) TimingLabel() string         { return fr.fragmentRoute.TimingLabel }

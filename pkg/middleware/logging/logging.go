@@ -74,11 +74,12 @@ func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
 	start := time.Now()
 	res, err := t.tripper.Request(r)
 	duration := time.Since(start)
-	fragment := viewproxy.FragmentFromContext(r.Context())
+	fragment := multiplexer.RequestableFromContext(r.Context())
 
 	if err != nil {
 		if fragment != nil {
-			safeUrl := t.secretFilter.FilterURLString(fragment.Url)
+			// TODO fragment.URL is full path
+			safeUrl := t.secretFilter.FilterURLString(fragment.URL())
 			t.logger.Printf("Fragment exception in %dms for %s\nerror: %s", duration.Milliseconds(), safeUrl, err)
 		} else {
 			safeUrl := t.secretFilter.FilterURL(r.URL)
@@ -89,7 +90,8 @@ func (t *logTripper) Request(r *http.Request) (*http.Response, error) {
 
 	// If fragment is nil, we are proxying
 	if fragment != nil {
-		safeUrl := t.secretFilter.FilterURLString(fragment.Url)
+		// TODO fragment.URL is full path
+		safeUrl := t.secretFilter.FilterURLString(fragment.URL())
 		t.logger.Printf("Fragment %d in %dms for %s", res.StatusCode, duration.Milliseconds(), safeUrl)
 	} else {
 		safeUrl := t.secretFilter.FilterURL(r.URL)

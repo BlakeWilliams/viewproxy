@@ -459,13 +459,13 @@ func TestOnErrorHandler(t *testing.T) {
 }
 
 type contextTestTripper struct {
-	route     *Route
-	fragments []*multiplexer.FragmentRequest
+	route        *Route
+	requestables []multiplexer.Requestable
 }
 
 func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
 	t.route = RouteFromContext(r.Context())
-	t.fragments = append(t.fragments, FragmentFromContext(r.Context()))
+	t.requestables = append(t.requestables, multiplexer.RequestableFromContext(r.Context()))
 	return http.DefaultClient.Do(r)
 }
 
@@ -492,7 +492,7 @@ func TestRoundTripperContext(t *testing.T) {
 	resp := w.Result()
 
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, 4, len(tripper.fragments))
+	assert.Equal(t, 4, len(tripper.requestables))
 	assert.NotNil(t, tripper.route)
 }
 
