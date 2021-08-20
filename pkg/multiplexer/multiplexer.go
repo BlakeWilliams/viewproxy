@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"sort"
 	"sync"
 	"time"
 
@@ -73,13 +72,14 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
-	resultsCh := make(chan *Result, len(r.fragments))
 
-	for _, f := range r.fragments {
+	results := make([]*Result, len(r.fragments))
+
+	for i, f := range r.fragments {
 		wg.Add(1)
 		ctx = context.WithValue(ctx, RequestableContextKey{}, f)
 
-		go func(ctx context.Context, f FragmentRequest, resultsCh chan *Result, wg *sync.WaitGroup) {
+		go func(ctx context.Context, requestable Requestable, i int, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
@@ -104,8 +104,8 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 				result.TimingLabel = requestable.TimingLabel()
 			}
 
-			resultsCh <- result
-		}(ctx, f, resultsCh, &wg)
+			results[i] = result
+		}(ctx, f, i, &wg)
 	}
 
 	// wait for all responses to complete
@@ -120,16 +120,6 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 		cancel()
 		return make([]*Result, 0), err
 	case <-done:
-		results := make([]*Result, len(r.fragments))
-
-		for i := 0; i < len(r.fragments); i++ {
-			results[i] = <-resultsCh
-		}
-
-		sort.SliceStable(results, func(i int, j int) bool {
-			return indexOfResult(r.fragments, results[i]) < indexOfResult(r.fragments, results[j])
-		})
-
 		return results, nil
 	case <-ctx.Done():
 		return make([]*Result, 0), ctx.Err()
@@ -223,14 +213,4 @@ func pathFromFullUrl(fullUrl string) string {
 	} else {
 		return targetUrl.Path
 	}
-}
-
-func indexOfResult(fragments []FragmentRequest, result *Result) int {
-	for i, fragment := range fragments {
-		if fragment.Url == result.Url {
-			return i
-		}
-	}
-
-	return -1
 }
