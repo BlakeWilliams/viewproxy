@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy"
-	"github.com/blakewilliams/viewproxy/pkg/fragments"
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/middleware/logging"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
@@ -26,11 +26,11 @@ func main() {
 
 	server.Get(
 		"/hello/:name",
-		fragments.Define("my_layout"),
-		fragments.Collection{
-			fragments.Define("header", fragments.WithMetadata(map[string]string{"title": "Hello"})),
-			fragments.Define("hello"),
-			fragments.Define("footer"),
+		fragment.Define("my_layout"),
+		fragment.Collection{
+			fragment.Define("header", fragment.WithMetadata(map[string]string{"title": "Hello"})),
+			fragment.Define("hello"),
+			fragment.Define("footer"),
 		},
 	)
 

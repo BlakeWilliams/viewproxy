@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/internal/tracing"
-	"github.com/blakewilliams/viewproxy/pkg/fragments"
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"go.opentelemetry.io/otel"
@@ -80,7 +80,7 @@ func NewServer(target string) *Server {
 		PassThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
 		target:             target,
-		ignoreHeaders:      make(map[string]bool, 0),
+		ignoreHeaders:      make(map[string]bool),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
@@ -94,7 +94,7 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 	}
 }
 
-func (s *Server) Get(path string, layout *fragments.Definition, content []*fragments.Definition, opts ...GetOption) {
+func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) {
 	route := newRoute(path, map[string]string{}, layout, content)
 
 	layout.PreloadUrl(s.target)
@@ -332,14 +332,14 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
-func FragmentRouteFromContext(ctx context.Context) *fragments.Definition {
+func FragmentRouteFromContext(ctx context.Context) *fragment.Definition {
 	requestable := multiplexer.RequestableFromContext(ctx)
 
 	if requestable == nil {
 		return nil
 	}
 
-	if fragment, ok := requestable.(*fragments.Request); ok {
+	if fragment, ok := requestable.(*fragment.Request); ok {
 		return fragment.Definition
 	}
 

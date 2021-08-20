@@ -1,4 +1,4 @@
-package fragments
+package fragment
 
 import (
 	"fmt"
@@ -34,6 +34,12 @@ func Define(path string, options ...DefinitionOption) *Definition {
 func WithMetadata(metadata map[string]string) DefinitionOption {
 	return func(definition *Definition) {
 		definition.Metadata = metadata
+	}
+}
+
+func WithTimingLabel(timingLabel string) DefinitionOption {
+	return func(definition *Definition) {
+		definition.TimingLabel = timingLabel
 	}
 }
 

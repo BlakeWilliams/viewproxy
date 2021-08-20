@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/blakewilliams/viewproxy"
-	"github.com/blakewilliams/viewproxy/pkg/fragments"
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +33,8 @@ func TestLoggingMiddleware(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragments.Define("/layouts/test_layout"),
-		fragments.Collection{fragments.Define("/body")},
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("/body")},
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
@@ -82,8 +82,8 @@ func TestLogTripperFragments(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragments.Define("/layouts/test_layout"),
-		fragments.Collection{fragments.Define("body")},
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("body")},
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
@@ -108,8 +108,8 @@ func TestLogTripperProxy(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragments.Define("/layouts/test_layout"),
-		fragments.Collection{fragments.Define("body")},
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("body")},
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
