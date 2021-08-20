@@ -24,12 +24,15 @@ func main() {
 	server.IgnoreHeader("etag")
 	server.PassThrough = true
 
-	layout := viewproxy.DefineFragment("my_layout")
-	server.Get("/hello/:name", layout, viewproxy.ContentFragments{
-		viewproxy.DefineFragment("header", fragments.WithMetadata(map[string]string{"title": "Hello"})),
-		viewproxy.DefineFragment("hello"),
-		viewproxy.DefineFragment("footer"),
-	})
+	server.Get(
+		"/hello/:name",
+		fragments.Define("my_layout"),
+		fragments.Collection{
+			fragments.Define("header", fragments.WithMetadata(map[string]string{"title": "Hello"})),
+			fragments.Define("hello"),
+			fragments.Define("footer"),
+		},
+	)
 
 	// setup middleware
 	server.AroundRequest = func(handler http.Handler) http.Handler {

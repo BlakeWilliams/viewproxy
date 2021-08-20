@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,11 +39,11 @@ func TestServer(t *testing.T) {
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.IgnoreHeader("etag")
-	layout := DefineFragment("/layouts/test_layout")
-	fragments := ContentFragments{
-		DefineFragment("header"),
-		DefineFragment("body"),
-		DefineFragment("footer"),
+	layout := fragments.Define("/layouts/test_layout")
+	fragments := fragments.Collection{
+		fragments.Define("header"),
+		fragments.Define("body"),
+		fragments.Define("footer"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
 
@@ -130,11 +131,11 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	viewProxyServer.IgnoreHeader("etag")
-	layout := DefineFragment("/layouts/test_layout")
-	fragments := ContentFragments{
-		DefineFragment("header"),
-		DefineFragment("body"),
-		DefineFragment("footer"),
+	layout := fragments.Define("/layouts/test_layout")
+	fragments := fragments.Collection{
+		fragments.Define("header"),
+		fragments.Define("body"),
+		fragments.Define("footer"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
 
@@ -286,7 +287,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Get("/hello/:name", DefineFragment("/foo"), ContentFragments{})
+	viewProxyServer.Get("/hello/:name", fragments.Define("/foo"), fragments.Collection{})
 	viewProxyServer.HmacSecret = secret
 
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
@@ -319,11 +320,11 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	layout := DefineFragment("/foo")
+	layout := fragments.Define("/foo")
 	layout.TimingLabel = "foo"
-	fragment := DefineFragment("/bar")
+	fragment := fragments.Define("/bar")
 	fragment.TimingLabel = "bar"
-	viewProxyServer.Get("/hello/:name", layout, ContentFragments{fragment})
+	viewProxyServer.Get("/hello/:name", layout, fragments.Collection{fragment})
 
 	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
@@ -367,7 +368,7 @@ func TestSupportsGzip(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Get("/hello/:name", DefineFragment("/layout"), ContentFragments{DefineFragment("/fragment")})
+	viewProxyServer.Get("/hello/:name", fragments.Define("/layout"), fragments.Collection{fragments.Define("/fragment")})
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.Header.Set("Accept-Encoding", "gzip")
@@ -392,7 +393,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer("http://fake.net")
-	server.Get("/hello/:name", DefineFragment("/layout"), ContentFragments{DefineFragment("/fragment")})
+	server.Get("/hello/:name", fragments.Define("/layout"), fragments.Collection{fragments.Define("/fragment")})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
@@ -422,7 +423,7 @@ func TestOnErrorHandler(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer(targetServer.URL)
-	server.Get("/hello/:name", DefineFragment("/definitely_missing_and_not_defined"), ContentFragments{})
+	server.Get("/hello/:name", fragments.Define("/definitely_missing_and_not_defined"), fragments.Collection{})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("x-viewproxy", "true")
@@ -476,11 +477,11 @@ func TestRoundTripperContext(t *testing.T) {
 	viewProxyServer.MultiplexerTripper = tripper
 
 	viewProxyServer.IgnoreHeader("etag")
-	layout := DefineFragment("/layouts/test_layout")
-	routeFragments := ContentFragments{
-		DefineFragment("header"),
-		DefineFragment("body"),
-		DefineFragment("footer"),
+	layout := fragments.Define("/layouts/test_layout")
+	routeFragments := fragments.Collection{
+		fragments.Define("header"),
+		fragments.Define("body"),
+		fragments.Define("footer"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, routeFragments)
 

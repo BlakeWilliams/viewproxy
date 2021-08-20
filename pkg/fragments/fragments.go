@@ -8,6 +8,7 @@ import (
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
+type Collection = []*Definition
 type DefinitionOption = func(*Definition)
 
 type Definition struct {
@@ -17,7 +18,7 @@ type Definition struct {
 	TimingLabel string            `json:"timingLabel"`
 }
 
-func New(path string, options ...DefinitionOption) *Definition {
+func Define(path string, options ...DefinitionOption) *Definition {
 	definition := &Definition{
 		Path:     path,
 		Metadata: make(map[string]string),

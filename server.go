@@ -94,7 +94,7 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 	}
 }
 
-func (s *Server) Get(path string, layout *fragments.Definition, content ContentFragments, opts ...GetOption) {
+func (s *Server) Get(path string, layout *fragments.Definition, content []*fragments.Definition, opts ...GetOption) {
 	route := newRoute(path, map[string]string{}, layout, content)
 
 	layout.PreloadUrl(s.target)
