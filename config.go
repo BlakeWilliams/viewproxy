@@ -8,8 +8,8 @@ import (
 
 type configRouteEntry struct {
 	Url       string            `json:"url"`
-	Layout    *Fragment         `json:"layout"`
-	Fragments []*Fragment       `json:"fragments"`
+	Layout    *FragmentRoute    `json:"layout"`
+	Fragments []*FragmentRoute  `json:"fragments"`
 	Metadata  map[string]string `json:"metadata"`
 }
 

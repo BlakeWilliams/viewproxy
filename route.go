@@ -7,12 +7,12 @@ import (
 type Route struct {
 	Path      string
 	Parts     []string
-	Layout    *Fragment
-	fragments []*Fragment
+	Layout    *FragmentRoute
+	fragments []*FragmentRoute
 	Metadata  map[string]string
 }
 
-func newRoute(path string, metadata map[string]string, layout *Fragment, fragments []*Fragment) *Route {
+func newRoute(path string, metadata map[string]string, layout *FragmentRoute, fragments []*FragmentRoute) *Route {
 	return &Route{
 		Path:      path,
 		Parts:     strings.Split(path, "/"),
@@ -49,8 +49,8 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) FragmentsToRequest() []*Fragment {
-	fragments := make([]*Fragment, len(r.fragments)+1)
+func (r *Route) FragmentsToRequest() []*FragmentRoute {
+	fragments := make([]*FragmentRoute, len(r.fragments)+1)
 	fragments[0] = r.Layout
 
 	for i, fragment := range r.fragments {

@@ -25,7 +25,7 @@ type Request struct {
 	ctx          context.Context
 	Header       http.Header
 	layoutURL    string
-	fragments    []Fragment
+	fragments    []FragmentRequest
 	Timeout      time.Duration
 	HmacSecret   string
 	Non2xxErrors bool
@@ -37,7 +37,7 @@ func NewRequest(tripper Tripper) *Request {
 	return &Request{
 		ctx:          context.TODO(),
 		layoutURL:    "",
-		fragments:    []Fragment{},
+		fragments:    []FragmentRequest{},
 		Timeout:      time.Duration(10) * time.Second,
 		HmacSecret:   "",
 		Non2xxErrors: true,
@@ -55,7 +55,7 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 }
 
 func (r *Request) WithFragment(fragmentURL string, metadata map[string]string, timingLabel string) {
-	r.fragments = append(r.fragments, Fragment{Url: fragmentURL, Metadata: metadata, timingLabel: timingLabel})
+	r.fragments = append(r.fragments, FragmentRequest{Url: fragmentURL, Metadata: metadata, timingLabel: timingLabel})
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -79,7 +79,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 		wg.Add(1)
 		ctx = context.WithValue(ctx, FragmentContextKey{}, f)
 
-		go func(ctx context.Context, f Fragment, resultsCh chan *Result, wg *sync.WaitGroup) {
+		go func(ctx context.Context, f FragmentRequest, resultsCh chan *Result, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
@@ -225,7 +225,7 @@ func pathFromFullUrl(fullUrl string) string {
 	}
 }
 
-func indexOfResult(fragments []Fragment, result *Result) int {
+func indexOfResult(fragments []FragmentRequest, result *Result) int {
 	for i, fragment := range fragments {
 		if fragment.Url == result.Url {
 			return i

@@ -84,11 +84,11 @@ func NewServer(target string) *Server {
 	}
 }
 
-func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
+func (s *Server) Get(path string, layout *FragmentRoute, fragments []*FragmentRoute) {
 	s.GetWithMetadata(path, layout, fragments, map[string]string{})
 }
 
-func (s *Server) GetWithMetadata(path string, layout *Fragment, fragments []*Fragment, metadata map[string]string) {
+func (s *Server) GetWithMetadata(path string, layout *FragmentRoute, fragments []*FragmentRoute, metadata map[string]string) {
 	route := newRoute(path, metadata, layout, fragments)
 
 	layout.PreloadUrl(s.target)
@@ -322,7 +322,7 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
-func FragmentFromContext(ctx context.Context) *multiplexer.Fragment {
+func FragmentFromContext(ctx context.Context) *multiplexer.FragmentRequest {
 	return multiplexer.FragmentFromContext(ctx)
 }
 

@@ -24,7 +24,7 @@ func main() {
 	server.PassThrough = true
 
 	layout := viewproxy.NewFragment("my_layout")
-	server.Get("/hello/:name", layout, []*viewproxy.Fragment{
+	server.Get("/hello/:name", layout, []*viewproxy.FragmentRoute{
 		viewproxy.NewFragmentWithMetadata("header", map[string]string{"title": "Hello"}),
 		viewproxy.NewFragment("hello"),
 		viewproxy.NewFragment("footer"),

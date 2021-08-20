@@ -39,7 +39,7 @@ func TestServer(t *testing.T) {
 
 	viewProxyServer.IgnoreHeader("etag")
 	layout := NewFragment("/layouts/test_layout")
-	fragments := []*Fragment{
+	fragments := []*FragmentRoute{
 		NewFragment("header"),
 		NewFragment("body"),
 		NewFragment("footer"),
@@ -131,7 +131,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 
 	viewProxyServer.IgnoreHeader("etag")
 	layout := NewFragment("/layouts/test_layout")
-	fragments := []*Fragment{
+	fragments := []*FragmentRoute{
 		NewFragment("header"),
 		NewFragment("body"),
 		NewFragment("footer"),
@@ -286,7 +286,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*Fragment{})
+	viewProxyServer.Get("/hello/:name", NewFragment("/foo"), []*FragmentRoute{})
 	viewProxyServer.HmacSecret = secret
 
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
@@ -323,7 +323,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	layout.TimingLabel = "foo"
 	fragment := NewFragment("/bar")
 	fragment.TimingLabel = "bar"
-	viewProxyServer.Get("/hello/:name", layout, []*Fragment{fragment})
+	viewProxyServer.Get("/hello/:name", layout, []*FragmentRoute{fragment})
 
 	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
@@ -367,7 +367,7 @@ func TestSupportsGzip(t *testing.T) {
 	}))
 
 	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
+	viewProxyServer.Get("/hello/:name", NewFragment("/layout"), []*FragmentRoute{NewFragment("/fragment")})
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.Header.Set("Accept-Encoding", "gzip")
@@ -392,7 +392,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer("http://fake.net")
-	server.Get("/hello/:name", NewFragment("/layout"), []*Fragment{NewFragment("/fragment")})
+	server.Get("/hello/:name", NewFragment("/layout"), []*FragmentRoute{NewFragment("/fragment")})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
@@ -422,7 +422,7 @@ func TestOnErrorHandler(t *testing.T) {
 	done := make(chan struct{})
 
 	server := NewServer(targetServer.URL)
-	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*Fragment{})
+	server.Get("/hello/:name", NewFragment("/definitely_missing_and_not_defined"), []*FragmentRoute{})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("x-viewproxy", "true")
@@ -460,7 +460,7 @@ func TestOnErrorHandler(t *testing.T) {
 
 type contextTestTripper struct {
 	route     *Route
-	fragments []*multiplexer.Fragment
+	fragments []*multiplexer.FragmentRequest
 }
 
 func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
@@ -477,7 +477,7 @@ func TestRoundTripperContext(t *testing.T) {
 
 	viewProxyServer.IgnoreHeader("etag")
 	layout := NewFragment("/layouts/test_layout")
-	fragments := []*Fragment{
+	fragments := []*FragmentRoute{
 		NewFragment("header"),
 		NewFragment("body"),
 		NewFragment("footer"),

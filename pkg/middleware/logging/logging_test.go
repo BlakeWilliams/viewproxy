@@ -31,7 +31,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	viewProxyServer.PassThrough = true
 
 	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
+	fragments := []*viewproxy.FragmentRoute{
 		viewproxy.NewFragment("body"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
@@ -80,7 +80,7 @@ func TestLogTripperFragments(t *testing.T) {
 	viewProxyServer.PassThrough = true
 
 	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
+	fragments := []*viewproxy.FragmentRoute{
 		viewproxy.NewFragment("body"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
@@ -106,7 +106,7 @@ func TestLogTripperProxy(t *testing.T) {
 	viewProxyServer.PassThrough = true
 
 	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
+	fragments := []*viewproxy.FragmentRoute{
 		viewproxy.NewFragment("body"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
