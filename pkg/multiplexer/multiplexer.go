@@ -169,12 +169,16 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		defer gzipReader.Close()
 
 		responseBody, err = ioutil.ReadAll(gzipReader)
+
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		responseBody, err = ioutil.ReadAll(resp.Body)
-	}
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result := &Result{
