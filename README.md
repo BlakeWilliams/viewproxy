@@ -24,11 +24,11 @@ server.PassThrough = true
 // This will make a layout request and 3 fragment requests, one for the header, hello, and footer.
 
 // GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
-layout := viewproxy.NewFragment("my_layout")
+layout := viewproxy.DefineFragment("my_layout")
 server.Get("/hello/:name", layout, []*viewproxy.Fragment{
-	viewproxy.NewFragment("header"), // GET http://localhost:3000/_view_fragments/header?name=world
-	viewproxy.NewFragment("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
-	viewproxy.NewFragment("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
+	viewproxy.DefineFragment("header"), // GET http://localhost:3000/_view_fragments/header?name=world
+	viewproxy.DefineFragment("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
+	viewproxy.DefineFragment("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
 })
 
 server.ListenAndServe()
@@ -62,9 +62,9 @@ viewProxyServer.ConfigureTracing(
 Each fragment can be configured with a static map of key/values, which will be set as tracing attributes when each fragment is fetched.
 
 ```go
-layout := viewproxy.NewFragment("my_layout")
+layout := viewproxy.DefineFragment("my_layout")
 server.Get("/hello/:name", layout, []*viewproxy.Fragment{
-	viewproxy.NewFragmentWithMetadata("header", map[string]string{"page": "homepage"}), // spans will have a "page" attribute with value "homepage"
+	viewproxy.DefineFragment("header", viewproxy.WithRouteMetadata(map[string]string{"page": "homepage"})), // spans will have a "page" attribute with value "homepage"
 })
 ```
 
@@ -100,9 +100,9 @@ layout-db;desc="layout db";dur=<duration>,body-db;desc="body db";dur=<duration>
 
 
 ```go
-layout := viewproxy.NewFragment("my_layout")
+layout := viewproxy.DefineFragment("my_layout")
 layout.TimingLabel = "layout"
-body := viewproxy.NewFragment("my_body")
+body := viewproxy.DefineFragment("my_body")
 body.TimingLabel = "body"
 server.Get("/hello/:name", layout, []*viewproxy.Fragment{body})
 ```

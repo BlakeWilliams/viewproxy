@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/internal/tracing"
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"go.opentelemetry.io/otel"
@@ -68,6 +69,7 @@ type Server struct {
 type routeContextKey struct{}
 type parametersContextKey struct{}
 
+// NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string) *Server {
 	return &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
@@ -84,16 +86,49 @@ func NewServer(target string) *Server {
 	}
 }
 
-func (s *Server) Get(path string, layout *FragmentRoute, fragments []*FragmentRoute) {
-	s.GetWithMetadata(path, layout, fragments, map[string]string{})
+type ContentFragments = []*fragments.Definition
+type DefinitionOption = fragments.DefinitionOption
+
+func WithFragmentMetadata(metadata map[string]string) DefinitionOption {
+	return fragments.WithMetadata(metadata)
 }
 
-func (s *Server) GetWithMetadata(path string, layout *FragmentRoute, fragments []*FragmentRoute, metadata map[string]string) {
-	route := newRoute(path, metadata, layout, fragments)
+// DefineFragment creates a new fragments.Definition targetting the given path.
+func DefineFragment(path string, opts ...DefinitionOption) *fragments.Definition {
+	return fragments.New(path, opts...)
+}
+
+// DefineFragments creates a new []*fragments.Definition for each string in
+// paths. This can be used in combination with the Server.Get function to define
+// routes.
+func DefineFragments(paths ...string) ContentFragments {
+	definitions := make(ContentFragments, len(paths))
+
+	for i, path := range paths {
+		definitions[i] = DefineFragment(path)
+	}
+
+	return definitions
+}
+
+type GetOption = func(*Route)
+
+func WithRouteMetadata(metadata map[string]string) GetOption {
+	return func(route *Route) {
+		route.Metadata = metadata
+	}
+}
+
+func (s *Server) Get(path string, layout *fragments.Definition, content ContentFragments, opts ...GetOption) {
+	route := newRoute(path, map[string]string{}, layout, content)
 
 	layout.PreloadUrl(s.target)
-	for _, fragment := range fragments {
+	for _, fragment := range content {
 		fragment.PreloadUrl(s.target)
+	}
+
+	for _, opt := range opts {
+		opt(route)
 	}
 
 	s.routes = append(s.routes, *route)
@@ -131,7 +166,7 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVe
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		s.GetWithMetadata(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, routeEntry.Metadata)
+		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, WithRouteMetadata(routeEntry.Metadata))
 	}
 
 	return nil
@@ -322,15 +357,15 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
-func FragmentRouteFromContext(ctx context.Context) *FragmentRoute {
+func FragmentRouteFromContext(ctx context.Context) *fragments.Definition {
 	requestable := multiplexer.RequestableFromContext(ctx)
 
 	if requestable == nil {
 		return nil
 	}
 
-	if fragment, ok := requestable.(*fragmentRequest); ok {
-		return fragment.fragmentRoute
+	if fragment, ok := requestable.(*fragments.Request); ok {
+		return fragment.Definition
 	}
 
 	return nil

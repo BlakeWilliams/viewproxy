@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestRouteMatch(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, map[string]string{}, NewFragment(""), []*FragmentRoute{})
+			route := newRoute(test.routePath, map[string]string{}, fragments.New(""), ContentFragments{})
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.matchParts(providedUrlParts)
 
@@ -47,7 +48,7 @@ func TestRouteParameters(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, map[string]string{}, NewFragment(""), []*FragmentRoute{})
+			route := newRoute(test.routePath, map[string]string{}, fragments.New(""), ContentFragments{})
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.parametersFor(providedUrlParts)
 
@@ -59,9 +60,9 @@ func TestRouteParameters(t *testing.T) {
 }
 
 func TestLayout(t *testing.T) {
-	route := newRoute("/", map[string]string{}, NewFragment("my_layout"), []*FragmentRoute{})
+	route := newRoute("/", map[string]string{}, fragments.New("my_layout"), ContentFragments{})
 
-	assert.Equal(t, *route.Layout, FragmentRoute{
+	assert.Equal(t, *route.LayoutFragment, fragments.Definition{
 		Path:     "my_layout",
 		Url:      "",
 		Metadata: map[string]string{},

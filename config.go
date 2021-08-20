@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 )
 
 type configRouteEntry struct {
-	Url       string            `json:"url"`
-	Layout    *FragmentRoute    `json:"layout"`
-	Fragments []*FragmentRoute  `json:"fragments"`
-	Metadata  map[string]string `json:"metadata"`
+	Url       string                `json:"url"`
+	Layout    *fragments.Definition `json:"layout"`
+	Fragments ContentFragments      `json:"fragments"`
+	Metadata  map[string]string     `json:"metadata"`
 }
 
 func readConfigFile(filePath string) ([]configRouteEntry, error) {

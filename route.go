@@ -2,23 +2,25 @@ package viewproxy
 
 import (
 	"strings"
+
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 )
 
 type Route struct {
-	Path      string
-	Parts     []string
-	Layout    *FragmentRoute
-	fragments []*FragmentRoute
-	Metadata  map[string]string
+	Path             string
+	Parts            []string
+	LayoutFragment   *fragments.Definition
+	ContentFragments ContentFragments
+	Metadata         map[string]string
 }
 
-func newRoute(path string, metadata map[string]string, layout *FragmentRoute, fragments []*FragmentRoute) *Route {
+func newRoute(path string, metadata map[string]string, layout *fragments.Definition, fragments ContentFragments) *Route {
 	return &Route{
-		Path:      path,
-		Parts:     strings.Split(path, "/"),
-		Layout:    layout,
-		fragments: fragments,
-		Metadata:  metadata,
+		Path:             path,
+		Parts:            strings.Split(path, "/"),
+		LayoutFragment:   layout,
+		ContentFragments: fragments,
+		Metadata:         metadata,
 	}
 }
 
@@ -49,11 +51,11 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) FragmentsToRequest() []*FragmentRoute {
-	fragments := make([]*FragmentRoute, len(r.fragments)+1)
-	fragments[0] = r.Layout
+func (r *Route) FragmentsToRequest() ContentFragments {
+	fragments := make(ContentFragments, len(r.ContentFragments)+1)
+	fragments[0] = r.LayoutFragment
 
-	for i, fragment := range r.fragments {
+	for i, fragment := range r.ContentFragments {
 		fragments[i+1] = fragment
 	}
 	return fragments

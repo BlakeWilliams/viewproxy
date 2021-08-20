@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy"
+	"github.com/blakewilliams/viewproxy/pkg/fragments"
 	"github.com/blakewilliams/viewproxy/pkg/middleware/logging"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
@@ -23,11 +24,11 @@ func main() {
 	server.IgnoreHeader("etag")
 	server.PassThrough = true
 
-	layout := viewproxy.NewFragment("my_layout")
-	server.Get("/hello/:name", layout, []*viewproxy.FragmentRoute{
-		viewproxy.NewFragmentWithMetadata("header", map[string]string{"title": "Hello"}),
-		viewproxy.NewFragment("hello"),
-		viewproxy.NewFragment("footer"),
+	layout := viewproxy.DefineFragment("my_layout")
+	server.Get("/hello/:name", layout, viewproxy.ContentFragments{
+		viewproxy.DefineFragment("header", fragments.WithMetadata(map[string]string{"title": "Hello"})),
+		viewproxy.DefineFragment("hello"),
+		viewproxy.DefineFragment("footer"),
 	})
 
 	// setup middleware
