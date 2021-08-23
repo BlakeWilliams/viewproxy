@@ -23,8 +23,7 @@ import (
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
-	layoutURL    string
-	fragments    []Requestable
+	requestables []Requestable
 	Timeout      time.Duration
 	HmacSecret   string
 	Non2xxErrors bool
@@ -35,8 +34,7 @@ type Request struct {
 func NewRequest(tripper Tripper) *Request {
 	return &Request{
 		ctx:          context.TODO(),
-		layoutURL:    "",
-		fragments:    []Requestable{},
+		requestables: []Requestable{},
 		Timeout:      time.Duration(10) * time.Second,
 		HmacSecret:   "",
 		Non2xxErrors: true,
@@ -54,7 +52,7 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 }
 
 func (r *Request) WithFragment(requestable Requestable) {
-	r.fragments = append(r.fragments, requestable)
+	r.requestables = append(r.requestables, requestable)
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -73,9 +71,9 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
 
-	results := make([]*Result, len(r.fragments))
+	results := make([]*Result, len(r.requestables))
 
-	for i, f := range r.fragments {
+	for i, f := range r.requestables {
 		wg.Add(1)
 		ctx = context.WithValue(ctx, RequestableContextKey{}, f)
 
