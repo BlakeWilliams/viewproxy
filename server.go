@@ -237,7 +237,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithFragment(f.IntoRequestable(query))
+		req.WithRequestable(f.IntoRequestable(query))
 	}
 
 	req.WithHeadersFromRequest(r)

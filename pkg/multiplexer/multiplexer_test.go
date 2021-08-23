@@ -14,24 +14,24 @@ import (
 
 var defaultTimeout = time.Duration(5) * time.Second
 
-type fakeFragment struct {
+type fakeRequestable struct {
 	url string
 }
 
-func (ff *fakeFragment) URL() string                 { return ff.url }
-func (ff *fakeFragment) Metadata() map[string]string { return make(map[string]string) }
-func (ff *fakeFragment) TimingLabel() string         { return "" }
-func newFakeFragment(url string) *fakeFragment       { return &fakeFragment{url: url} }
+func (ff *fakeRequestable) URL() string                 { return ff.url }
+func (ff *fakeRequestable) Metadata() map[string]string { return make(map[string]string) }
+func (ff *fakeRequestable) TimingLabel() string         { return "" }
+func newFakeRequestable(url string) *fakeRequestable    { return &fakeRequestable{url: url} }
 
-var _ Requestable = &fakeFragment{}
+var _ Requestable = &fakeRequestable{}
 
 func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
 	server := startServer(t)
 	urls := []string{"http://localhost:9990?fragment=header", "http://localhost:9990?fragment=footer"}
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
-	r.WithFragment(newFakeFragment(urls[0]))
-	r.WithFragment(newFakeFragment(urls[1]))
+	r.WithRequestable(newFakeRequestable(urls[0]))
+	r.WithRequestable(newFakeRequestable(urls[1]))
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
@@ -60,7 +60,7 @@ func TestRequestDoForwardsHeaders(t *testing.T) {
 	fakeHTTPRequest := &http.Request{Header: headers}
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
-	r.WithFragment(newFakeFragment("http://localhost:9990?fragment=echo_headers"))
+	r.WithRequestable(newFakeRequestable("http://localhost:9990?fragment=echo_headers"))
 	r.WithHeadersFromRequest(fakeHTTPRequest)
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
@@ -77,7 +77,7 @@ func TestFetch404ReturnsError(t *testing.T) {
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
 	r.SecretFilter = secretfilter.New()
-	r.WithFragment(newFakeFragment("http://localhost:9990/wowomg"))
+	r.WithRequestable(newFakeRequestable("http://localhost:9990/wowomg"))
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
@@ -95,7 +95,7 @@ func TestResultErrorMessagesFilterUrls(t *testing.T) {
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
 	r.SecretFilter = secretfilter.New()
-	r.WithFragment(newFakeFragment("http://localhost:9990/wowomg?foo=bar"))
+	r.WithRequestable(newFakeRequestable("http://localhost:9990/wowomg?foo=bar"))
 	r.Timeout = defaultTimeout
 	_, err := r.Do(context.TODO())
 
@@ -113,8 +113,8 @@ func TestFetch500ReturnsError(t *testing.T) {
 	urls := []string{"http://localhost:9990/?fragment=oops", "http://localhost:9990?fragment=slow"}
 	r := NewRequest(NewStandardTripper(&http.Client{}))
 	r.SecretFilter = secretfilter.New()
-	r.WithFragment(newFakeFragment(urls[0]))
-	r.WithFragment(newFakeFragment(urls[1]))
+	r.WithRequestable(newFakeRequestable(urls[0]))
+	r.WithRequestable(newFakeRequestable(urls[1]))
 	results, err := r.Do(context.TODO())
 
 	duration := time.Since(start)
@@ -134,7 +134,7 @@ func TestFetchTimeout(t *testing.T) {
 	start := time.Now()
 
 	r := NewRequest(NewStandardTripper(&http.Client{}))
-	r.WithFragment(newFakeFragment("http://localhost:9990?fragment=slow"))
+	r.WithRequestable(newFakeRequestable("http://localhost:9990?fragment=slow"))
 	r.Timeout = time.Duration(100) * time.Millisecond
 	_, err := r.Do(context.Background())
 	duration := time.Since(start)
@@ -150,7 +150,7 @@ func TestCanIgnoreNon2xxErrors(t *testing.T) {
 
 	ctx := context.Background()
 	r := NewRequest(NewStandardTripper(&http.Client{}))
-	r.WithFragment(newFakeFragment("http://localhost:9990?fragment=slow"))
+	r.WithRequestable(newFakeRequestable("http://localhost:9990?frgagment=slow"))
 	r.Timeout = time.Duration(100) * time.Millisecond
 	r.Non2xxErrors = false
 	_, err := r.Do(context.Background())

@@ -51,7 +51,7 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 	}
 }
 
-func (r *Request) WithFragment(requestable Requestable) {
+func (r *Request) WithRequestable(requestable Requestable) {
 	r.requestables = append(r.requestables, requestable)
 }
 
