@@ -328,6 +328,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
 	r.RemoteAddr = "localhost:1"
+	r.Header.Add(HeaderViewProxyOriginalPath, "/fake/path")
 	w := httptest.NewRecorder()
 
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
