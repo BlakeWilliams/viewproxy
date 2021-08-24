@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var targetServer *httptest.Server
@@ -68,7 +68,7 @@ func TestServer(t *testing.T) {
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	err = viewProxyServer.LoadRoutesFromFile(file.Name())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -96,13 +96,13 @@ func TestServer(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 
 			resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", tc.url))
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			body, err := ioutil.ReadAll(resp.Body)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
-			assert.Equal(t, tc.expected_body, string(body))
-			assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-			assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
+			require.Equal(t, tc.expected_body, string(body))
+			require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+			require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 		})
 	}
 }
@@ -119,10 +119,10 @@ func TestHealthCheck(t *testing.T) {
 	resp := w.Result()
 
 	body, err := ioutil.ReadAll(resp.Body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	expected := "200 ok"
 
-	assert.Equal(t, expected, string(body))
+	require.Equal(t, expected, string(body))
 }
 
 func TestQueryParamForwardingServer(t *testing.T) {
@@ -146,12 +146,12 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	resp := w.Result()
 
 	body, err := ioutil.ReadAll(resp.Body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	expected := "<html><body>hello world!</body></html>"
 
-	assert.Equal(t, expected, string(body))
-	assert.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-	assert.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
+	require.Equal(t, expected, string(body))
+	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+	require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
 func TestPassThroughEnabled(t *testing.T) {
@@ -166,10 +166,10 @@ func TestPassThroughEnabled(t *testing.T) {
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
-	assert.Equal(t, 500, resp.StatusCode)
-	assert.Equal(t, "Something went wrong", string(body))
+	require.Equal(t, 500, resp.StatusCode)
+	require.Equal(t, "Something went wrong", string(body))
 }
 
 func TestPassThroughDisabled(t *testing.T) {
@@ -183,10 +183,10 @@ func TestPassThroughDisabled(t *testing.T) {
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
-	assert.Equal(t, 404, resp.StatusCode)
-	assert.Equal(t, "404 not found", string(body))
+	require.Equal(t, 404, resp.StatusCode)
+	require.Equal(t, "404 not found", string(body))
 }
 
 func TestPassThroughSetsCorrectHeaders(t *testing.T) {
@@ -197,9 +197,9 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(done)
 
-		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
-		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
+		require.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
+		require.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
+		require.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
 
 		w.Header().Set("Server-Timing", "db;dur=53")
 		w.WriteHeader(http.StatusOK)
@@ -219,12 +219,12 @@ func TestPassThroughSetsCorrectHeaders(t *testing.T) {
 	case <-done:
 		server.Close()
 	case <-ctx.Done():
-		assert.Fail(t, ctx.Err().Error())
+		require.Fail(t, ctx.Err().Error())
 	}
 
 	resp := w.Result()
 
-	assert.Equal(t, "db;dur=53", resp.Header.Get("Server-Timing"))
+	require.Equal(t, "db;dur=53", resp.Header.Get("Server-Timing"))
 }
 
 func TestPassThroughPostRequest(t *testing.T) {
@@ -237,9 +237,9 @@ func TestPassThroughPostRequest(t *testing.T) {
 
 		body, err := io.ReadAll(r.Body)
 
-		assert.Nil(t, err)
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "hello", string(body))
+		require.Nil(t, err)
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "hello", string(body))
 	}))
 
 	viewProxyServer := NewServer(server.URL)
@@ -254,7 +254,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 	case <-done:
 		server.Close()
 	case <-ctx.Done():
-		assert.Fail(t, ctx.Err().Error())
+		require.Fail(t, ctx.Err().Error())
 	}
 }
 
@@ -266,7 +266,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 		defer close(done)
 
 		time := r.Header.Get("X-Authorization-Time")
-		assert.NotEqual(t, "", time, "Expected X-Authorization-Time header to be present")
+		require.NotEqual(t, "", time, "Expected X-Authorization-Time header to be present")
 
 		key := fmt.Sprintf("%s?%s,%s", r.URL.Path, r.URL.RawQuery, time)
 
@@ -276,11 +276,11 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 		)
 
 		authorization := r.Header.Get("Authorization")
-		assert.NotEqual(t, "", authorization, "Expected Authorization header to be present")
+		require.NotEqual(t, "", authorization, "Expected Authorization header to be present")
 
 		expected := hex.EncodeToString(mac.Sum(nil))
 
-		assert.Equal(t, expected, authorization)
+		require.Equal(t, expected, authorization)
 
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -311,10 +311,10 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 			defer close(fragmentDone)
 			w.Header().Set("Server-Timing", "db;dur=34")
 		}
-		assert.Equal(t, r.Header.Get(HeaderViewProxyOriginalPath), "/hello/world?foo=bar")
-		assert.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
-		assert.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		assert.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
+		require.Equal(t, r.Header.Get(HeaderViewProxyOriginalPath), "/hello/world?foo=bar")
+		require.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
+		require.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
+		require.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -338,10 +338,10 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 
 	resp := w.Result()
 
-	assert.Contains(t, resp.Header.Get("Server-Timing"), "foo-db;desc=\"foo db\";dur=12")
-	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
-	assert.Contains(t, resp.Header.Get("Server-Timing"), "foo-fragment;desc=\"foo fragment\";dur=")
-	assert.Contains(t, resp.Header.Get("Server-Timing"), "bar-fragment;desc=\"bar fragment\";dur=")
+	require.Contains(t, resp.Header.Get("Server-Timing"), "foo-db;desc=\"foo db\";dur=12")
+	require.Contains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
+	require.Contains(t, resp.Header.Get("Server-Timing"), "foo-fragment;desc=\"foo fragment\";dur=")
+	require.Contains(t, resp.Header.Get("Server-Timing"), "bar-fragment;desc=\"bar fragment\";dur=")
 
 	server.Close()
 }
@@ -379,12 +379,12 @@ func TestSupportsGzip(t *testing.T) {
 	resp := w.Result()
 
 	gzReader, err := gzip.NewReader(resp.Body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	body, err := ioutil.ReadAll(gzReader)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
-	assert.Equal(t, "<body>wow gzipped!</body>", string(body))
+	require.Equal(t, "<body>wow gzipped!</body>", string(body))
 
 	server.Close()
 }
@@ -398,8 +398,8 @@ func TestAroundRequestCallback(t *testing.T) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
 			w.Header().Set("x-viewproxy", "true")
-			assert.Equal(t, "/hello/:name", RouteFromContext(r.Context()).Path)
-			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+			require.Equal(t, "/hello/:name", RouteFromContext(r.Context()).Path)
+			require.Equal(t, "192.168.1.1", r.RemoteAddr)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -412,7 +412,7 @@ func TestAroundRequestCallback(t *testing.T) {
 
 	resp := w.Result()
 
-	assert.Equal(t, "true", resp.Header.Get("x-viewproxy"))
+	require.Equal(t, "true", resp.Header.Get("x-viewproxy"))
 
 	<-done
 }
@@ -427,7 +427,7 @@ func TestOnErrorHandler(t *testing.T) {
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("x-viewproxy", "true")
-			assert.Equal(t, "192.168.1.1", r.RemoteAddr)
+			require.Equal(t, "192.168.1.1", r.RemoteAddr)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -435,13 +435,13 @@ func TestOnErrorHandler(t *testing.T) {
 		defer close(done)
 		var resultErr *ResultError
 
-		assert.ErrorAs(t, e, &resultErr)
-		assert.Equal(
+		require.ErrorAs(t, e, &resultErr)
+		require.Equal(
 			t,
 			fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
 			resultErr.Result.Url,
 		)
-		assert.Equal(t, 404, resultErr.Result.StatusCode)
+		require.Equal(t, 404, resultErr.Result.StatusCode)
 	}
 
 	fakeWriter := httptest.NewRecorder()
@@ -450,12 +450,12 @@ func TestOnErrorHandler(t *testing.T) {
 
 	server.CreateHandler().ServeHTTP(fakeWriter, fakeRequest)
 
-	assert.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+	require.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 
 	select {
 	case <-done:
 	case <-ctx.Done():
-		assert.Fail(t, ctx.Err().Error())
+		require.Fail(t, ctx.Err().Error())
 	}
 }
 
@@ -492,9 +492,9 @@ func TestRoundTripperContext(t *testing.T) {
 
 	resp := w.Result()
 
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, 4, len(tripper.fragments))
-	assert.NotNil(t, tripper.route)
+	require.Equal(t, 200, resp.StatusCode)
+	require.Equal(t, 4, len(tripper.fragments))
+	require.NotNil(t, tripper.route)
 }
 
 func startTargetServer() *httptest.Server {

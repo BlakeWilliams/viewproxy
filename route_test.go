@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRouteMatch(t *testing.T) {
@@ -61,7 +61,7 @@ func TestRouteParameters(t *testing.T) {
 func TestLayout(t *testing.T) {
 	route := newRoute("/", map[string]string{}, NewFragment("my_layout"), []*Fragment{})
 
-	assert.Equal(t, *route.Layout, Fragment{
+	require.Equal(t, *route.Layout, Fragment{
 		Path:     "my_layout",
 		Url:      "",
 		Metadata: map[string]string{},

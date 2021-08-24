@@ -10,7 +10,7 @@ import (
 	"github.com/blakewilliams/viewproxy"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type SliceLogger struct {
@@ -48,20 +48,20 @@ func TestLoggingMiddleware(t *testing.T) {
 	w := httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp := w.Result()
-	assert.Equal(t, 200, resp.StatusCode)
+	require.Equal(t, 200, resp.StatusCode)
 
-	assert.Equal(t, "Handling /hello/world", log.logs[0])
-	assert.Regexp(t, regexp.MustCompile(`Rendered 200 in \d+ms for /hello/world`), log.logs[1])
+	require.Equal(t, "Handling /hello/world", log.logs[0])
+	require.Regexp(t, regexp.MustCompile(`Rendered 200 in \d+ms for /hello/world`), log.logs[1])
 
 	// Proxying request
 	r = httptest.NewRequest("GET", "/fake", nil)
 	w = httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp = w.Result()
-	assert.Equal(t, 404, resp.StatusCode)
+	require.Equal(t, 404, resp.StatusCode)
 
-	assert.Equal(t, "Proxying /fake", log.logs[2])
-	assert.Regexp(t, regexp.MustCompile(`Proxied 404 in \d+ms for /fake`), log.logs[3])
+	require.Equal(t, "Proxying /fake", log.logs[2])
+	require.Regexp(t, regexp.MustCompile(`Proxied 404 in \d+ms for /fake`), log.logs[3])
 
 	// Proxying disabled
 	viewProxyServer.PassThrough = false
@@ -69,9 +69,9 @@ func TestLoggingMiddleware(t *testing.T) {
 	w = httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp = w.Result()
-	assert.Equal(t, 404, resp.StatusCode)
+	require.Equal(t, 404, resp.StatusCode)
 
-	assert.Equal(t, "Proxying is disabled and no route matches /fake", log.logs[4])
+	require.Equal(t, "Proxying is disabled and no route matches /fake", log.logs[4])
 }
 
 func TestLogTripperFragments(t *testing.T) {
@@ -92,12 +92,12 @@ func TestLogTripperFragments(t *testing.T) {
 	w := httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp := w.Result()
-	assert.Equal(t, 200, resp.StatusCode)
+	require.Equal(t, 200, resp.StatusCode)
 
 	fmt.Println(log.logs)
 
-	assert.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[0])
-	assert.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[1])
+	require.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[0])
+	require.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[1])
 }
 
 func TestLogTripperProxy(t *testing.T) {
@@ -118,10 +118,10 @@ func TestLogTripperProxy(t *testing.T) {
 	w := httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp := w.Result()
-	assert.Equal(t, 404, resp.StatusCode)
+	require.Equal(t, 404, resp.StatusCode)
 
 	fmt.Println(log.logs)
-	assert.Regexp(t, regexp.MustCompile(`Proxy request 404 in \d+ms for http:\/\/.*`), log.logs[0])
+	require.Regexp(t, regexp.MustCompile(`Proxy request 404 in \d+ms for http:\/\/.*`), log.logs[0])
 }
 
 func startTargetServer() *httptest.Server {
