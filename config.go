@@ -9,10 +9,10 @@ import (
 )
 
 type configRouteEntry struct {
-	Url       string                 `json:"url"`
-	Layout    *fragment.Definition   `json:"layout"`
-	Fragments []*fragment.Definition `json:"fragments"`
-	Metadata  map[string]string      `json:"metadata"`
+	Url       string               `json:"url"`
+	Layout    *fragment.Definition `json:"layout"`
+	Fragments fragment.Collection  `json:"fragments"`
+	Metadata  map[string]string    `json:"metadata"`
 }
 
 func readConfigFile(filePath string) ([]configRouteEntry, error) {
