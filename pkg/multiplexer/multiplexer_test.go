@@ -197,9 +197,9 @@ func startServer(t *testing.T) *http.Server {
 	return testServer
 }
 
-func TestErrTimeout(t *testing.T) {
+func TestTimeoutError(t *testing.T) {
 	originalError := errors.New("omg")
-	err := newErrTimeout(originalError)
+	err := newTimeoutError(originalError)
 
 	assert.Equal(t, "multiplexer timed out: omg", err.Error())
 	assert.Equal(t, originalError, err.Unwrap())
