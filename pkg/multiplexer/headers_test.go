@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPreservesForwardedHeaders(t *testing.T) {
@@ -18,11 +18,11 @@ func TestPreservesForwardedHeaders(t *testing.T) {
 	newHeaders := HeadersFromRequest(fakeHTTPRequest)
 
 	// append X-Forwarded-For
-	assert.Equal(t, "1.2.3.4, 1.3.5.7", newHeaders.Get("X-Forwarded-For"))
+	require.Equal(t, "1.2.3.4, 1.3.5.7", newHeaders.Get("X-Forwarded-For"))
 
 	// preserve X-Forwarded-Host and X-Forwarded-Proto
-	assert.Equal(t, "example.com", newHeaders.Get("X-Forwarded-Host"))
-	assert.Equal(t, "httpz", newHeaders.Get("X-Forwarded-Proto"))
+	require.Equal(t, "example.com", newHeaders.Get("X-Forwarded-Host"))
+	require.Equal(t, "httpz", newHeaders.Get("X-Forwarded-Proto"))
 }
 
 func TestSetsDefaultForwardedHeaders(t *testing.T) {
@@ -34,9 +34,9 @@ func TestSetsDefaultForwardedHeaders(t *testing.T) {
 	newHeaders := HeadersFromRequest(fakeHTTPRequest)
 
 	// append X-Forwarded-For
-	assert.Equal(t, "1.3.5.7", newHeaders.Get("X-Forwarded-For"))
+	require.Equal(t, "1.3.5.7", newHeaders.Get("X-Forwarded-For"))
 
 	// set default X-Forwarded-Host and X-Forwarded-Proto
-	assert.Equal(t, "example.com", newHeaders.Get("X-Forwarded-Host"))
-	assert.Equal(t, "httpz", newHeaders.Get("X-Forwarded-Proto"))
+	require.Equal(t, "example.com", newHeaders.Get("X-Forwarded-Host"))
+	require.Equal(t, "httpz", newHeaders.Get("X-Forwarded-Proto"))
 }

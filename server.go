@@ -241,7 +241,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	}
 
 	req.WithHeadersFromRequest(r)
-	req.Header.Add(HeaderViewProxyOriginalPath, r.URL.RequestURI())
+	req.Header.Set(HeaderViewProxyOriginalPath, r.URL.RequestURI())
 	results, err := req.Do(ctx)
 
 	if err != nil {

@@ -2,6 +2,7 @@ package multiplexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var defaultTimeout = time.Duration(5) * time.Second
@@ -35,19 +36,19 @@ func TestRequestDoReturnsMultipleResponsesInOrder(t *testing.T) {
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
-	assert.Equal(t, 2, len(results), "Expected 2 results")
+	require.Equal(t, 2, len(results), "Expected 2 results")
 
-	assert.Equal(t, 200, results[0].StatusCode)
-	assert.Equal(t, "<body>", string(results[0].Body), "Expected first result body to be opening body tag")
-	assert.Equal(t, urls[0], results[0].Url)
-	assert.Greater(t, results[0].Duration, time.Duration(0))
+	require.Equal(t, 200, results[0].StatusCode)
+	require.Equal(t, "<body>", string(results[0].Body), "Expected first result body to be opening body tag")
+	require.Equal(t, urls[0], results[0].Url)
+	require.Greater(t, results[0].Duration, time.Duration(0))
 
-	assert.Equal(t, 200, results[1].StatusCode)
-	assert.Equal(t, "</body>", string(results[1].Body), "Expected last result body to be closing body tag")
-	assert.Equal(t, urls[1], results[1].Url)
-	assert.Greater(t, results[1].Duration, time.Duration(0))
+	require.Equal(t, 200, results[1].StatusCode)
+	require.Equal(t, "</body>", string(results[1].Body), "Expected last result body to be closing body tag")
+	require.Equal(t, urls[1], results[1].Url)
+	require.Greater(t, results[1].Duration, time.Duration(0))
 
 	server.Close()
 }
@@ -65,9 +66,9 @@ func TestRequestDoForwardsHeaders(t *testing.T) {
 	r.Timeout = defaultTimeout
 	results, err := r.Do(context.TODO())
 
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
-	assert.Contains(t, string(results[0].Body), "X-Name:viewproxy", "Expected X-Name header to be present")
+	require.Contains(t, string(results[0].Body), "X-Name:viewproxy", "Expected X-Name header to be present")
 
 	server.Close()
 }
@@ -82,10 +83,10 @@ func TestFetch404ReturnsError(t *testing.T) {
 	results, err := r.Do(context.TODO())
 
 	var resultErr *ResultError
-	assert.ErrorAs(t, err, &resultErr)
-	assert.Equal(t, 404, resultErr.Result.StatusCode)
-	assert.Equal(t, "http://localhost:9990/wowomg", resultErr.Result.Url)
-	assert.Equal(t, 0, len(results), "Expected 0 results")
+	require.ErrorAs(t, err, &resultErr)
+	require.Equal(t, 404, resultErr.Result.StatusCode)
+	require.Equal(t, "http://localhost:9990/wowomg", resultErr.Result.Url)
+	require.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
 }
@@ -100,8 +101,8 @@ func TestResultErrorMessagesFilterUrls(t *testing.T) {
 	_, err := r.Do(context.TODO())
 
 	var resultErr *ResultError
-	assert.ErrorAs(t, err, &resultErr)
-	assert.Equal(t, "status: 404 url: http://localhost:9990/wowomg?foo=FILTERED", resultErr.Error())
+	require.ErrorAs(t, err, &resultErr)
+	require.Equal(t, "status: 404 url: http://localhost:9990/wowomg?foo=FILTERED", resultErr.Error())
 
 	server.Close()
 }
@@ -119,12 +120,12 @@ func TestFetch500ReturnsError(t *testing.T) {
 
 	duration := time.Since(start)
 
-	assert.Less(t, duration, time.Duration(3)*time.Second)
+	require.Less(t, duration, time.Duration(3)*time.Second)
 	var resultErr *ResultError
-	assert.ErrorAs(t, err, &resultErr)
-	assert.Equal(t, 500, resultErr.Result.StatusCode)
-	assert.Equal(t, "http://localhost:9990/?fragment=oops", resultErr.Result.Url)
-	assert.Equal(t, 0, len(results), "Expected 0 results")
+	require.ErrorAs(t, err, &resultErr)
+	require.Equal(t, 500, resultErr.Result.StatusCode)
+	require.Equal(t, "http://localhost:9990/?fragment=oops", resultErr.Result.Url)
+	require.Equal(t, 0, len(results), "Expected 0 results")
 
 	server.Close()
 }
@@ -139,8 +140,8 @@ func TestFetchTimeout(t *testing.T) {
 	_, err := r.Do(context.Background())
 	duration := time.Since(start)
 
-	assert.EqualError(t, err, "context deadline exceeded")
-	assert.Less(t, duration, time.Duration(120)*time.Millisecond)
+	require.EqualError(t, err, "multiplexer timed out: context deadline exceeded")
+	require.Less(t, duration, time.Duration(120)*time.Millisecond)
 
 	server.Close()
 }
@@ -157,8 +158,8 @@ func TestCanIgnoreNon2xxErrors(t *testing.T) {
 
 	result, err := r.DoSingle(ctx, "get", "http://localhost:9990/?fragment=oops", nil)
 
-	assert.Nil(t, err)
-	assert.Equal(t, 500, result.StatusCode)
+	require.Nil(t, err)
+	require.Equal(t, 500, result.StatusCode)
 
 	server.Close()
 }
@@ -195,14 +196,22 @@ func startServer(t *testing.T) *http.Server {
 	})
 
 	listener, err := net.Listen("tcp", "localhost:9990")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testServer := &http.Server{Handler: instance}
 	go func() {
 		if err := testServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	}()
 
 	return testServer
+}
+
+func TestTimeoutError(t *testing.T) {
+	originalError := errors.New("omg")
+	err := newTimeoutError(originalError)
+
+	require.Equal(t, "multiplexer timed out: omg", err.Error())
+	require.Equal(t, originalError, err.Unwrap())
 }
