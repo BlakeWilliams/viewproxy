@@ -48,6 +48,7 @@ type Server struct {
 	WriteTimeout time.Duration
 	routes       []Route
 	target       string
+	targetURL    *url.URL
 	httpServer   *http.Server
 	reverseProxy *httputil.ReverseProxy
 	Logger       logger
@@ -85,6 +86,12 @@ func emptyMiddleware(h http.Handler) http.Handler { return h }
 
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string, opts ...ServerOption) (*Server, error) {
+	targetURL, err := url.Parse(target)
+
+	if err != nil {
+		panic(err)
+	}
+
 	server := &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
@@ -97,6 +104,7 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		AroundRequest:      emptyMiddleware,
 		AroundResponse:     emptyMiddleware,
 		target:             target,
+		targetURL:          targetURL,
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}

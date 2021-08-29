@@ -62,9 +62,5 @@ func TestRouteParameters(t *testing.T) {
 func TestLayout(t *testing.T) {
 	route := newRoute("/", map[string]string{}, fragment.Define("my_layout"), fragment.Collection{})
 
-	require.Equal(t, *route.LayoutFragment, fragment.Definition{
-		Path:     "my_layout",
-		Url:      "",
-		Metadata: map[string]string{},
-	})
+	require.Equal(t, route.LayoutFragment.Path, "my_layout")
 }

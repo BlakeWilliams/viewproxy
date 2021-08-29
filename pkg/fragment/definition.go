@@ -13,6 +13,7 @@ type DefinitionOption = func(*Definition)
 
 type Definition struct {
 	Path        string `json:"path"`
+	routeParts  []string
 	Url         string
 	Metadata    map[string]string `json:"metadata"`
 	TimingLabel string            `json:"timingLabel"`
@@ -20,8 +21,9 @@ type Definition struct {
 
 func Define(path string, options ...DefinitionOption) *Definition {
 	definition := &Definition{
-		Path:     path,
-		Metadata: make(map[string]string),
+		Path:       path,
+		routeParts: strings.Split(path, "/")[1:],
+		Metadata:   make(map[string]string),
 	}
 
 	for _, option := range options {
@@ -56,6 +58,33 @@ func (d *Definition) IntoRequestable(params url.Values) multiplexer.Requestable 
 		url:        d.UrlWithParams(params),
 		Definition: d,
 	}
+}
+
+func (d *Definition) Requestable(target *url.URL, parameters map[string]string) (multiplexer.Requestable, error) {
+	target = &*target // clone the url
+
+	var path strings.Builder
+
+	for _, part := range d.routeParts {
+		path.WriteByte('/')
+
+		if strings.HasPrefix(part, ":") {
+			if replacement, ok := parameters[part[1:]]; ok {
+				path.WriteString(replacement)
+			} else {
+				return nil, fmt.Errorf("no url replacement found for %s in %s", part, d.Path)
+			}
+		} else {
+			path.WriteString(part)
+		}
+	}
+
+	target.Path = path.String()
+
+	return &Request{
+		url:        target.String(),
+		Definition: d,
+	}, nil
 }
 
 func (d *Definition) PreloadUrl(target string) {
