@@ -1,10 +1,33 @@
 package viewproxy
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 )
+
+type RouteValidationError struct {
+	Route    *Route
+	Fragment *fragment.Definition
+}
+
+func (rve *RouteValidationError) Error() string {
+	if rve.Route.HasDynamicParts() {
+		return fmt.Sprintf(
+			"dynamic route %s has mismatched fragment route %s",
+			rve.Route.Path,
+			rve.Fragment.Path,
+		)
+	} else {
+		return fmt.Sprintf(
+			"static route %s has mismatched fragment route %s",
+			rve.Route.Path,
+			rve.Fragment.Path,
+		)
+	}
+}
 
 type Route struct {
 	Path             string
@@ -22,6 +45,50 @@ func newRoute(path string, metadata map[string]string, layout *fragment.Definiti
 		ContentFragments: contentFragments,
 		Metadata:         metadata,
 	}
+}
+
+// Validates if the route and fragments have compatible dynamic route parts.
+func (r *Route) Validate() (bool, error) {
+	if r.HasDynamicParts() {
+		dynamicParts := r.DynamicParts()
+
+		for _, fragment := range r.FragmentsToRequest() {
+			if !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
+				return false, &RouteValidationError{Route: r, Fragment: fragment}
+			}
+		}
+
+		return true, nil
+	} else {
+		for _, fragment := range r.FragmentsToRequest() {
+			if fragment.HasDynamicParts() {
+				return false, &RouteValidationError{Route: r, Fragment: fragment}
+			}
+		}
+
+		return true, nil
+	}
+}
+
+func (r *Route) HasDynamicParts() bool {
+	for _, part := range r.Parts {
+		if strings.HasPrefix(part, ":") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *Route) DynamicParts() []string {
+	parts := make([]string, 0)
+
+	for _, part := range r.Parts {
+		if strings.HasPrefix(part, ":") {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }
 
 func (r *Route) matchParts(pathParts []string) bool {

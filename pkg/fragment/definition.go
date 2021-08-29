@@ -45,6 +45,27 @@ func WithTimingLabel(timingLabel string) DefinitionOption {
 	}
 }
 
+func (d *Definition) HasDynamicParts() bool {
+	for _, part := range d.routeParts {
+		if strings.HasPrefix(part, ":") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *Definition) DynamicParts() []string {
+	parts := make([]string, 0)
+
+	for _, part := range d.routeParts {
+		if strings.HasPrefix(part, ":") {
+			parts = append(parts, part)
+		}
+	}
+	return parts
+}
+
 func (d *Definition) UrlWithParams(parameters url.Values) string {
 	// This is already parsed before constructing the url in server.go, so we ignore errors
 	targetUrl, _ := url.Parse(d.Url)
