@@ -147,8 +147,8 @@ func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	return nil
 }
 
-func (s *Server) Shutdown(ctx context.Context) {
-	s.httpServer.Shutdown(ctx)
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) Close() {
