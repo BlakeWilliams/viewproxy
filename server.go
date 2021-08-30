@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/viewproxy/internal/tracing"
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"go.opentelemetry.io/otel"
@@ -68,6 +69,7 @@ type Server struct {
 type routeContextKey struct{}
 type parametersContextKey struct{}
 
+// NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string) *Server {
 	return &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
@@ -78,22 +80,30 @@ func NewServer(target string) *Server {
 		PassThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
 		target:             target,
-		ignoreHeaders:      make(map[string]bool, 0),
+		ignoreHeaders:      make(map[string]bool),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
 }
 
-func (s *Server) Get(path string, layout *Fragment, fragments []*Fragment) {
-	s.GetWithMetadata(path, layout, fragments, map[string]string{})
+type GetOption = func(*Route)
+
+func WithRouteMetadata(metadata map[string]string) GetOption {
+	return func(route *Route) {
+		route.Metadata = metadata
+	}
 }
 
-func (s *Server) GetWithMetadata(path string, layout *Fragment, fragments []*Fragment, metadata map[string]string) {
-	route := newRoute(path, metadata, layout, fragments)
+func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) {
+	route := newRoute(path, map[string]string{}, layout, content)
 
 	layout.PreloadUrl(s.target)
-	for _, fragment := range fragments {
+	for _, fragment := range content {
 		fragment.PreloadUrl(s.target)
+	}
+
+	for _, opt := range opts {
+		opt(route)
 	}
 
 	s.routes = append(s.routes, *route)
@@ -131,7 +141,7 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVe
 
 func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		s.GetWithMetadata(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, routeEntry.Metadata)
+		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, WithRouteMetadata(routeEntry.Metadata))
 	}
 
 	return nil
@@ -227,7 +237,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithFragment(f.UrlWithParams(query), f.Metadata, f.TimingLabel)
+		req.WithRequestable(f.IntoRequestable(query))
 	}
 
 	req.WithHeadersFromRequest(r)
@@ -322,8 +332,18 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 	return nil
 }
 
-func FragmentFromContext(ctx context.Context) *multiplexer.Fragment {
-	return multiplexer.FragmentFromContext(ctx)
+func FragmentRouteFromContext(ctx context.Context) *fragment.Definition {
+	requestable := multiplexer.RequestableFromContext(ctx)
+
+	if requestable == nil {
+		return nil
+	}
+
+	if fragment, ok := requestable.(*fragment.Request); ok {
+		return fragment.Definition
+	}
+
+	return nil
 }
 
 func (s *Server) ListenAndServe() error {

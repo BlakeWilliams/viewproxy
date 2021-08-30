@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/blakewilliams/viewproxy"
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
 	"github.com/stretchr/testify/require"
@@ -30,11 +31,11 @@ func TestLoggingMiddleware(t *testing.T) {
 	viewProxyServer := viewproxy.NewServer(targetServer.URL)
 	viewProxyServer.PassThrough = true
 
-	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
-		viewproxy.NewFragment("body"),
-	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get(
+		"/hello/:name",
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("/body")},
+	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
 	viewProxyServer.AroundRequest = func(handler http.Handler) http.Handler {
@@ -79,11 +80,11 @@ func TestLogTripperFragments(t *testing.T) {
 	viewProxyServer := viewproxy.NewServer(targetServer.URL)
 	viewProxyServer.PassThrough = true
 
-	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
-		viewproxy.NewFragment("body"),
-	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get(
+		"/hello/:name",
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("body")},
+	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
 	viewProxyServer.MultiplexerTripper = NewLogTripper(log, secretfilter.New(), multiplexer.NewStandardTripper(&http.Client{}))
@@ -105,11 +106,11 @@ func TestLogTripperProxy(t *testing.T) {
 	viewProxyServer := viewproxy.NewServer(targetServer.URL)
 	viewProxyServer.PassThrough = true
 
-	layout := viewproxy.NewFragment("/layouts/test_layout")
-	fragments := []*viewproxy.Fragment{
-		viewproxy.NewFragment("body"),
-	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get(
+		"/hello/:name",
+		fragment.Define("/layouts/test_layout"),
+		fragment.Collection{fragment.Define("body")},
+	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
 	viewProxyServer.MultiplexerTripper = NewLogTripper(log, secretfilter.New(), multiplexer.NewStandardTripper(&http.Client{}))

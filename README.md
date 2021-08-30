@@ -12,6 +12,7 @@ To use `viewproxy`:
 
 ```go
 import "github.com/blakewilliams/viewproxy"
+import "github.com/blakewilliams/viewproxy/pkg/fragment"
 
 // Create and configure a new Server Instance
 server := viewproxy.NewServer(target)
@@ -24,11 +25,11 @@ server.PassThrough = true
 // This will make a layout request and 3 fragment requests, one for the header, hello, and footer.
 
 // GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
-layout := viewproxy.NewFragment("my_layout")
-server.Get("/hello/:name", layout, []*viewproxy.Fragment{
-	viewproxy.NewFragment("header"), // GET http://localhost:3000/_view_fragments/header?name=world
-	viewproxy.NewFragment("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
-	viewproxy.NewFragment("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
+layout := fragment.Define("my_layout")
+server.Get("/hello/:name", layout, fragment.Collection{
+	fragment.Define("header"), // GET http://localhost:3000/_view_fragments/header?name=world
+	fragment.Define("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
+	fragment.Define("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
 })
 
 server.ListenAndServe()
@@ -62,9 +63,9 @@ viewProxyServer.ConfigureTracing(
 Each fragment can be configured with a static map of key/values, which will be set as tracing attributes when each fragment is fetched.
 
 ```go
-layout := viewproxy.NewFragment("my_layout")
-server.Get("/hello/:name", layout, []*viewproxy.Fragment{
-	viewproxy.NewFragmentWithMetadata("header", map[string]string{"page": "homepage"}), // spans will have a "page" attribute with value "homepage"
+layout := fragment.Define("my_layout")
+server.Get("/hello/:name", layout, fragment.Collection{
+	fragment.Define("header", fragment.WithMetadata(map[string]string{"page": "homepage"})), // spans will have a "page" attribute with value "homepage"
 })
 ```
 
@@ -100,9 +101,8 @@ layout-db;desc="layout db";dur=<duration>,body-db;desc="body db";dur=<duration>
 
 
 ```go
-layout := viewproxy.NewFragment("my_layout")
-layout.TimingLabel = "layout"
-body := viewproxy.NewFragment("my_body")
+layout := viewproxy.DefineFragment("my_layout", fragment.WithTimingLabel("layout"))
+body := viewproxy.DefineFragment("my_body")
 body.TimingLabel = "body"
-server.Get("/hello/:name", layout, []*viewproxy.Fragment{body})
+server.Get("/hello/:name", layout, fragment.Collection{body})
 ```

@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"sort"
 	"sync"
 	"time"
 
@@ -42,8 +41,7 @@ func newTimeoutError(inner error) *TimeoutError {
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
-	layoutURL    string
-	fragments    []Fragment
+	requestables []Requestable
 	Timeout      time.Duration
 	HmacSecret   string
 	Non2xxErrors bool
@@ -54,8 +52,7 @@ type Request struct {
 func NewRequest(tripper Tripper) *Request {
 	return &Request{
 		ctx:          context.TODO(),
-		layoutURL:    "",
-		fragments:    []Fragment{},
+		requestables: []Requestable{},
 		Timeout:      time.Duration(10) * time.Second,
 		HmacSecret:   "",
 		Non2xxErrors: true,
@@ -72,8 +69,8 @@ func (r *Request) WithHeadersFromRequest(req *http.Request) {
 	}
 }
 
-func (r *Request) WithFragment(fragmentURL string, metadata map[string]string, timingLabel string) {
-	r.fragments = append(r.fragments, Fragment{Url: fragmentURL, Metadata: metadata, timingLabel: timingLabel})
+func (r *Request) WithRequestable(requestable Requestable) {
+	r.requestables = append(r.requestables, requestable)
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
@@ -91,17 +88,18 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 	wg := sync.WaitGroup{}
 	errCh := make(chan error)
-	resultsCh := make(chan *Result, len(r.fragments))
 
-	for _, f := range r.fragments {
+	results := make([]*Result, len(r.requestables))
+
+	for i, f := range r.requestables {
 		wg.Add(1)
-		ctx = context.WithValue(ctx, FragmentContextKey{}, f)
+		ctx = context.WithValue(ctx, RequestableContextKey{}, f)
 
-		go func(ctx context.Context, f Fragment, resultsCh chan *Result, wg *sync.WaitGroup) {
+		go func(ctx context.Context, requestable Requestable, i int, wg *sync.WaitGroup) {
 			defer wg.Done()
 			var span trace.Span
 			ctx, span = tracer.Start(ctx, "fetch_url")
-			for key, value := range f.Metadata {
+			for key, value := range requestable.Metadata() {
 				span.SetAttributes(attribute.KeyValue{
 					Key:   attribute.Key(key),
 					Value: attribute.StringValue(value),
@@ -111,19 +109,19 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 			headersForRequest := r.Header
 			if r.HmacSecret != "" {
-				headersForRequest = r.headersWithHmac(f.Url)
+				headersForRequest = r.headersWithHmac(requestable.URL())
 			}
 
-			result, err := r.fetchUrl(ctx, "GET", f.Url, headersForRequest, nil)
+			result, err := r.fetchUrl(ctx, "GET", requestable.URL(), headersForRequest, nil)
 
 			if err != nil {
 				errCh <- err
 			} else {
-				result.TimingLabel = f.timingLabel
+				result.TimingLabel = requestable.TimingLabel()
 			}
 
-			resultsCh <- result
-		}(ctx, f, resultsCh, &wg)
+			results[i] = result
+		}(ctx, f, i, &wg)
 	}
 
 	// wait for all responses to complete
@@ -138,16 +136,6 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 		cancel()
 		return make([]*Result, 0), err
 	case <-done:
-		results := make([]*Result, len(r.fragments))
-
-		for i := 0; i < len(r.fragments); i++ {
-			results[i] = <-resultsCh
-		}
-
-		sort.SliceStable(results, func(i int, j int) bool {
-			return indexOfResult(r.fragments, results[i]) < indexOfResult(r.fragments, results[j])
-		})
-
 		return results, nil
 	case <-ctx.Done():
 		return make([]*Result, 0), newTimeoutError(ctx.Err())
@@ -187,12 +175,16 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 		defer gzipReader.Close()
 
 		responseBody, err = ioutil.ReadAll(gzipReader)
+
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		responseBody, err = ioutil.ReadAll(resp.Body)
-	}
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result := &Result{
@@ -237,14 +229,4 @@ func pathFromFullUrl(fullUrl string) string {
 	} else {
 		return targetUrl.Path
 	}
-}
-
-func indexOfResult(fragments []Fragment, result *Result) int {
-	for i, fragment := range fragments {
-		if fragment.Url == result.Url {
-			return i
-		}
-	}
-
-	return -1
 }
