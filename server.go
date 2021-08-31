@@ -38,8 +38,13 @@ type logger interface {
 }
 
 type Server struct {
-	Addr          string
-	ProxyTimeout  time.Duration
+	Addr string
+	// Sets the maximum duration for requests made to the target server
+	ProxyTimeout time.Duration
+	// Sets the maximum duration for reading the entire request, including the body
+	ReadTimeout time.Duration
+	// Sets the maximum duration before timing out writes of the response
+	WriteTimeout  time.Duration
 	routes        []Route
 	target        string
 	httpServer    *http.Server
@@ -69,6 +74,8 @@ type Server struct {
 type routeContextKey struct{}
 type parametersContextKey struct{}
 
+const defaultTimeout = 10 * time.Second
+
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string) *Server {
 	return &Server{
@@ -76,7 +83,9 @@ func NewServer(target string) *Server {
 		Logger:             log.Default(),
 		SecretFilter:       secretfilter.New(),
 		Addr:               "localhost:3005",
-		ProxyTimeout:       time.Duration(10) * time.Second,
+		ProxyTimeout:       defaultTimeout,
+		ReadTimeout:        defaultTimeout,
+		WriteTimeout:       defaultTimeout,
 		PassThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
 		target:             target,
@@ -373,8 +382,8 @@ func (s *Server) configureServer(serveFn func() error) error {
 	s.httpServer = &http.Server{
 		Addr:           s.Addr,
 		Handler:        s.CreateHandler(),
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    s.ReadTimeout,
+		WriteTimeout:   s.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 
