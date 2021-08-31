@@ -39,7 +39,7 @@ type logger interface {
 
 type Server struct {
 	Addr string
-	// Sets the timeout for requests made to the target
+	// Sets the timeout for requests made to the target server
 	ProxyTimeout time.Duration
 	// Sets the maximum duration for reading the entire request, including the body
 	ReadTimeout time.Duration
