@@ -107,6 +107,21 @@ func TestResultErrorMessagesFilterUrls(t *testing.T) {
 	server.Close()
 }
 
+func TestRequestErrorMessagesFilterUrls(t *testing.T) {
+	server := startServer(t)
+
+	r := NewRequest(NewStandardTripper(&http.Client{}))
+	r.SecretFilter = secretfilter.New()
+	r.WithRequestable(newFakeRequestable("http://localhost:9990/wowomg?fragment=bad_gateway&foo=bar"))
+	r.Timeout = defaultTimeout
+	_, err := r.Do(context.TODO())
+
+	require.Error(t, err)
+	require.Equal(t, "Get \"http://localhost:9990/wowomg?foo=FILTERED&fragment=FILTERED\": EOF", err.Error())
+
+	server.Close()
+}
+
 func TestFetch500ReturnsError(t *testing.T) {
 	server := startServer(t)
 	start := time.Now()
@@ -165,6 +180,8 @@ func TestCanIgnoreNon2xxErrors(t *testing.T) {
 }
 
 func startServer(t *testing.T) *http.Server {
+	var testServer *http.Server
+
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 		fragment := params.Get("fragment")
@@ -189,6 +206,8 @@ func startServer(t *testing.T) *http.Server {
 					)
 				}
 			}
+		} else if fragment == "bad_gateway" {
+			testServer.Close()
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("Not found"))
@@ -198,7 +217,7 @@ func startServer(t *testing.T) *http.Server {
 	listener, err := net.Listen("tcp", "localhost:9990")
 	require.NoError(t, err)
 
-	testServer := &http.Server{Handler: instance}
+	testServer = &http.Server{Handler: instance}
 	go func() {
 		if err := testServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			require.NoError(t, err)

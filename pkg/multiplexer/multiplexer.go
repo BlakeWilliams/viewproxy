@@ -75,7 +75,8 @@ func (r *Request) WithRequestable(requestable Requestable) {
 }
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
-	return r.fetchUrl(ctx, method, url, r.Header, body)
+	res, err := r.fetchUrl(ctx, method, url, r.Header, body)
+	return res, r.filterError(err)
 }
 
 func (r *Request) Do(ctx context.Context) ([]*Result, error) {
@@ -135,7 +136,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	select {
 	case err := <-errCh:
 		cancel()
-		return make([]*Result, 0), err
+		return make([]*Result, 0), r.filterError(err)
 	case <-done:
 		return results, nil
 	case <-ctx.Done():
@@ -149,7 +150,7 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 
 	if err != nil {
-		return nil, r.filterError(err)
+		return nil, err
 	}
 
 	for name, values := range headers {
