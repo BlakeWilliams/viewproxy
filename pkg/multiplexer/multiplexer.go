@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -146,8 +147,9 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 	start := time.Now()
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
+
 	if err != nil {
-		return nil, err
+		return nil, r.filterError(err)
 	}
 
 	for name, values := range headers {
@@ -219,6 +221,15 @@ func (r *Request) headersWithHmac(url string) http.Header {
 	newHeaders.Set("X-Authorization-Time", timestamp)
 
 	return newHeaders
+}
+
+func (r *Request) filterError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return r.SecretFilter.FilterURLError(urlErr)
+	}
+
+	return err
 }
 
 func pathFromFullUrl(fullUrl string) string {
