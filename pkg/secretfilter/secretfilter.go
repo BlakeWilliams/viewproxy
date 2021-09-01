@@ -11,6 +11,7 @@ type Filter interface {
 	FilterURL(url *url.URL) *url.URL
 	FilterURLString(url string) string
 	FilterQueryParams(params url.Values) url.Values
+	FilterURLError(err *url.Error) *url.Error
 }
 
 type mapKey struct{}
@@ -74,4 +75,12 @@ func (l *secretFilter) FilterQueryParams(query url.Values) url.Values {
 	}
 
 	return filteredQueryParams
+}
+
+func (l *secretFilter) FilterURLError(err *url.Error) *url.Error {
+	return &url.Error{
+		Op:  err.Op,
+		URL: l.FilterURLString(err.URL),
+		Err: err.Err,
+	}
 }

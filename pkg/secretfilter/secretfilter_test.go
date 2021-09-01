@@ -1,6 +1,7 @@
 package secretfilter
 
 import (
+	"io"
 	"net/url"
 	"testing"
 
@@ -102,4 +103,19 @@ func TestSecretFilter_FilterQueryParams(t *testing.T) {
 			require.Equal(t, tc.want, filter.FilterQueryParams(tc.input))
 		})
 	}
+}
+
+func TestSecretFilter_FilterUrlError(t *testing.T) {
+	original := &url.Error{
+		Op:  "Get",
+		Err: io.EOF,
+		URL: "http://localhost/foo?a=1",
+	}
+
+	filter := New()
+	filtered := filter.FilterURLError(original)
+
+	require.Equal(t, "http://localhost/foo?a=FILTERED", filtered.URL)
+	require.Equal(t, "Get", filtered.Op)
+	require.Equal(t, io.EOF, filtered.Err)
 }
