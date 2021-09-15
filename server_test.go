@@ -156,9 +156,8 @@ func TestQueryParamForwardingServer(t *testing.T) {
 }
 
 func TestPassThroughEnabled(t *testing.T) {
-	viewProxyServer := NewServer(targetServer.URL)
+	viewProxyServer := NewServer(targetServer.URL, WithPassThrough(targetServer.URL))
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-	viewProxyServer.PassThrough = true
 
 	r := httptest.NewRequest("GET", "/oops", nil)
 	w := httptest.NewRecorder()
@@ -175,7 +174,6 @@ func TestPassThroughEnabled(t *testing.T) {
 
 func TestPassThroughDisabled(t *testing.T) {
 	viewProxyServer := NewServer(targetServer.URL)
-	viewProxyServer.PassThrough = false
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
@@ -188,44 +186,6 @@ func TestPassThroughDisabled(t *testing.T) {
 
 	require.Equal(t, 404, resp.StatusCode)
 	require.Equal(t, "404 not found", string(body))
-}
-
-func TestPassThroughSetsCorrectHeaders(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	done := make(chan struct{})
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer close(done)
-
-		require.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
-		require.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		require.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
-
-		w.Header().Set("Server-Timing", "db;dur=53")
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.PassThrough = true
-
-	r := httptest.NewRequest("GET", "/hello/world", nil)
-	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
-	r.RemoteAddr = "localhost:1"
-	w := httptest.NewRecorder()
-
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
-
-	select {
-	case <-done:
-		server.Close()
-	case <-ctx.Done():
-		require.Fail(t, ctx.Err().Error())
-	}
-
-	resp := w.Result()
-
-	require.Equal(t, "db;dur=53", resp.Header.Get("Server-Timing"))
 }
 
 func TestPassThroughPostRequest(t *testing.T) {
@@ -243,8 +203,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 		require.Equal(t, "hello", string(body))
 	}))
 
-	viewProxyServer := NewServer(server.URL)
-	viewProxyServer.PassThrough = true
+	viewProxyServer := NewServer(server.URL, WithPassThrough(server.URL))
 
 	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
