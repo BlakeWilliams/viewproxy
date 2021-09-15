@@ -61,8 +61,6 @@ func TestLoggingMiddleware(t *testing.T) {
 	require.Equal(t, 404, resp.StatusCode)
 
 	require.Equal(t, "Proxying is disabled and no route matches /fake", log.logs[2])
-
-	viewProxyServer = viewproxy.NewServer(targetServer.URL, viewproxy.WithPassThrough(targetServer.URL))
 }
 
 func TestLogTripperFragments(t *testing.T) {
