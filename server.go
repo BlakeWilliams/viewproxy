@@ -302,7 +302,6 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
 	if s.passThrough {
-		fmt.Println("serving")
 		s.reverseProxy.ServeHTTP(w, r)
 	} else {
 		w.WriteHeader(404)
