@@ -28,7 +28,8 @@ func (l *SliceLogger) Printf(line string, args ...interface{}) {
 
 func TestLoggingMiddleware(t *testing.T) {
 	targetServer := startTargetServer()
-	viewProxyServer := viewproxy.NewServer(targetServer.URL)
+	viewProxyServer, err := viewproxy.NewServer(targetServer.URL)
+	require.NoError(t, err)
 
 	viewProxyServer.Get(
 		"/hello/:name",
@@ -65,7 +66,8 @@ func TestLoggingMiddleware(t *testing.T) {
 
 func TestLogTripperFragments(t *testing.T) {
 	targetServer := startTargetServer()
-	viewProxyServer := viewproxy.NewServer(targetServer.URL, viewproxy.WithPassThrough(targetServer.URL))
+	viewProxyServer, err := viewproxy.NewServer(targetServer.URL, viewproxy.WithPassThrough(targetServer.URL))
+	require.NoError(t, err)
 
 	viewProxyServer.Get(
 		"/hello/:name",

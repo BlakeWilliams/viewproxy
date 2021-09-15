@@ -73,7 +73,7 @@ type Server struct {
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
-type ServerOption = func(*Server)
+type ServerOption = func(*Server) error
 
 type routeContextKey struct{}
 type parametersContextKey struct{}
@@ -81,7 +81,7 @@ type parametersContextKey struct{}
 const defaultTimeout = 10 * time.Second
 
 // NewServer returns a new Server that will make requests to the given target argument.
-func NewServer(target string, opts ...ServerOption) *Server {
+func NewServer(target string, opts ...ServerOption) (*Server, error) {
 	server := &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
@@ -99,22 +99,28 @@ func NewServer(target string, opts ...ServerOption) *Server {
 	}
 
 	for _, fn := range opts {
-		fn(server)
+		err := fn(server)
+
+		if err != nil {
+			return nil, fmt.Errorf("viewproxy.ServerOption error: %w", err)
+		}
 	}
 
-	return server
+	return server, nil
 }
 
 func WithPassThrough(passthroughTarget string) ServerOption {
-	targetURL, err := url.Parse(passthroughTarget)
+	return func(server *Server) error {
+		targetURL, err := url.Parse(passthroughTarget)
 
-	if err != nil {
-		panic(err)
-	}
+		if err != nil {
+			return fmt.Errorf("WithPassThrough error: %w", err)
+		}
 
-	return func(server *Server) {
 		server.passThrough = true
 		server.reverseProxy = httputil.NewSingleHostReverseProxy(targetURL)
+
+		return nil
 	}
 }
 
