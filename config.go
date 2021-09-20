@@ -2,7 +2,10 @@ package viewproxy
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
@@ -36,6 +39,28 @@ func loadJsonConfig(routesJson []byte) ([]configRouteEntry, error) {
 
 	if err := json.Unmarshal(routesJson, &routeEntries); err != nil {
 		return nil, err
+	}
+
+	return routeEntries, nil
+}
+
+func loadHttpConfigFile(target string) ([]configRouteEntry, error) {
+	var routeEntries []configRouteEntry
+
+	resp, err := http.Get(target)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch JSON configuration: %w", err)
+	}
+
+	routesJson, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not read route config response body: %w", err)
+	}
+
+	if err := json.Unmarshal(routesJson, &routeEntries); err != nil {
+		return routeEntries, fmt.Errorf("could not unmarshal route config json: %w", err)
 	}
 
 	return routeEntries, nil

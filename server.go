@@ -173,6 +173,16 @@ func (s *Server) LoadRoutesFromJSON(routesJson string) error {
 	return s.loadRoutes(routeEntries)
 }
 
+func (s *Server) LoadRoutesFromEndpoint(endpoint string) error {
+	target := fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(endpoint, "/"))
+	routeEntries, err := loadHttpConfigFile(target)
+	if err != nil {
+		return err
+	}
+
+	return s.loadRoutes(routeEntries)
+}
+
 func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
 	s.tracingConfig.Enabled = true
 	s.tracingConfig.Endpoint = endpoint

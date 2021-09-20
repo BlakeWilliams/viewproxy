@@ -466,6 +466,22 @@ func TestRoundTripperContext(t *testing.T) {
 	require.Equal(t, 4, len(tripper.requestables))
 	require.NotNil(t, tripper.route)
 }
+func TestServer_HttpConfig(t *testing.T) {
+	viewproxyServer := NewServer(targetServer.URL)
+
+	err := viewproxyServer.LoadRoutesFromEndpoint("/_viewproxy_routes")
+	require.NoError(t, err)
+	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	require.Len(t, viewproxyServer.routes, 1)
+	route := viewproxyServer.routes[0]
+
+	require.Equal(t, "/users/new", route.Path)
+	require.Equal(t, "sessions", route.Metadata["controller"])
+	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
+	require.Len(t, route.ContentFragments, 1)
+	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
+}
 
 func TestWithPassThrough_Error(t *testing.T) {
 	_, err := NewServer(targetServer.URL, WithPassThrough("%invalid%"))
@@ -501,6 +517,26 @@ func startTargetServer() *httptest.Server {
 		} else if r.URL.Path == "/oops" {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Something went wrong"))
+		} else if r.URL.Path == "/_viewproxy_routes" {
+			w.Header().Set("Content-Type", "text/json")
+			w.WriteHeader(http.StatusOK)
+
+			w.Write([]byte(`[
+				{
+					"url": "/users/new",
+					"metadata": {
+						"controller": "sessions"
+					},
+					"layout": {
+						"path": "/_viewproxy/users/new/layout"
+					},
+					"fragments": [
+						{
+							"path": "/_viewproxy/users/new/content"
+						}
+					]
+				}
+			]`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
