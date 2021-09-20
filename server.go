@@ -151,36 +151,18 @@ func (s *Server) Get(path string, layout *fragment.Definition, content []*fragme
 	s.routes = append(s.routes, *route)
 }
 
+// target returns the configured http target
+func (s *Server) Target() string {
+	return s.target
+}
+
+// routes returns a slice containing routes defined on the server.
+func (s *Server) Routes() []Route {
+	return s.routes
+}
+
 func (s *Server) IgnoreHeader(name string) {
 	s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
-}
-
-func (s *Server) LoadRoutesFromFile(filePath string) error {
-	routeEntries, err := readConfigFile(filePath)
-	if err != nil {
-		return err
-	}
-
-	return s.loadRoutes(routeEntries)
-}
-
-func (s *Server) LoadRoutesFromJSON(routesJson string) error {
-	routeEntries, err := loadJsonConfig([]byte(routesJson))
-	if err != nil {
-		return err
-	}
-
-	return s.loadRoutes(routeEntries)
-}
-
-func (s *Server) LoadRoutesFromEndpoint(endpoint string) error {
-	target := fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(endpoint, "/"))
-	routeEntries, err := loadHttpConfigFile(target)
-	if err != nil {
-		return err
-	}
-
-	return s.loadRoutes(routeEntries)
 }
 
 func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
@@ -189,14 +171,6 @@ func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVe
 	s.tracingConfig.ServiceName = serviceName
 	s.tracingConfig.ServiceVersion = serviceVersion
 	s.tracingConfig.Insecure = insecure
-}
-
-func (s *Server) loadRoutes(routeEntries []configRouteEntry) error {
-	for _, routeEntry := range routeEntries {
-		s.Get(routeEntry.Url, routeEntry.Layout, routeEntry.Fragments, WithRouteMetadata(routeEntry.Metadata))
-	}
-
-	return nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

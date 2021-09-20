@@ -47,66 +47,22 @@ func TestServer(t *testing.T) {
 		fragment.Define("footer"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
-
-	// Load routes from config
-	file, err := ioutil.TempFile(os.TempDir(), "config.json")
-	if err != nil {
-		t.Error(err)
-	}
-	defer os.Remove(file.Name())
-
-	file.Write([]byte(`[{
-		"url": "/greetings/:name",
-		"layout": { "path": "/layouts/test_layout", "metadata": { "foo": "test_layout" }},
-		"fragments": [
-			{ "path": "header", "metadata": { "foo": "header" }},
-			{ "path": "body",   "metadata": { "foo": "body" }},
-			{ "path": "footer", "metadata": { "foo": "footer" }}
-		]
-	}]`))
-
-	file.Close()
-
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
-	err = viewProxyServer.LoadRoutesFromFile(file.Name())
-	require.Nil(t, err)
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
 		}
 	}()
-	defer viewProxyServer.Close()
 
-	tests := map[string]struct {
-		url           string
-		expected_body string
-	}{
-		"basic server": {
-			url:           "/hello/world",
-			expected_body: "<html><body>hello world</body></html>",
-		},
+	resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", "/hello/world"))
+	require.Nil(t, err)
+	body, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
 
-		"json configured server": {
-			url:           "/greetings/world",
-			expected_body: "<html><body>hello world</body></html>",
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-
-			resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", tc.url))
-			require.Nil(t, err)
-			body, err := ioutil.ReadAll(resp.Body)
-			require.Nil(t, err)
-
-			require.Equal(t, tc.expected_body, string(body))
-			require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-			require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
-		})
-	}
+	require.Equal(t, "<html><body>hello world</body></html>", string(body))
+	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+	require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
 func TestHealthCheck(t *testing.T) {
@@ -466,22 +422,6 @@ func TestRoundTripperContext(t *testing.T) {
 	require.Equal(t, 4, len(tripper.requestables))
 	require.NotNil(t, tripper.route)
 }
-func TestServer_HttpConfig(t *testing.T) {
-	viewproxyServer := NewServer(targetServer.URL)
-
-	err := viewproxyServer.LoadRoutesFromEndpoint("/_viewproxy_routes")
-	require.NoError(t, err)
-	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-
-	require.Len(t, viewproxyServer.routes, 1)
-	route := viewproxyServer.routes[0]
-
-	require.Equal(t, "/users/new", route.Path)
-	require.Equal(t, "sessions", route.Metadata["controller"])
-	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
-	require.Len(t, route.ContentFragments, 1)
-	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
-}
 
 func TestWithPassThrough_Error(t *testing.T) {
 	_, err := NewServer(targetServer.URL, WithPassThrough("%invalid%"))
@@ -517,26 +457,6 @@ func startTargetServer() *httptest.Server {
 		} else if r.URL.Path == "/oops" {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Something went wrong"))
-		} else if r.URL.Path == "/_viewproxy_routes" {
-			w.Header().Set("Content-Type", "text/json")
-			w.WriteHeader(http.StatusOK)
-
-			w.Write([]byte(`[
-				{
-					"url": "/users/new",
-					"metadata": {
-						"controller": "sessions"
-					},
-					"layout": {
-						"path": "/_viewproxy/users/new/layout"
-					},
-					"fragments": [
-						{
-							"path": "/_viewproxy/users/new/content"
-						}
-					]
-				}
-			]`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
