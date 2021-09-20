@@ -90,10 +90,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 	wg := sync.WaitGroup{}
 	reqCount := len(r.requestables)
-
 	errCh := make(chan error, reqCount)
-	defer close(errCh)
-
 	results := make([]*Result, reqCount)
 
 	for i, f := range r.requestables {
