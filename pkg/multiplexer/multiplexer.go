@@ -89,9 +89,9 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	defer cancel()
 
 	wg := sync.WaitGroup{}
-	errCh := make(chan error)
-
-	results := make([]*Result, len(r.requestables))
+	reqCount := len(r.requestables)
+	errCh := make(chan error, reqCount)
+	results := make([]*Result, reqCount)
 
 	for i, f := range r.requestables {
 		wg.Add(1)
