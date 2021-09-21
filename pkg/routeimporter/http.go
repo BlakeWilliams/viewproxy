@@ -31,7 +31,7 @@ func LoadHttp(server *viewproxy.Server, path string) error {
 	}
 
 	if server.HmacSecret != "" {
-		SetHmacHeaders(req, server.HmacSecret)
+		setHmacHeaders(req, server.HmacSecret)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -59,7 +59,7 @@ func LoadHttp(server *viewproxy.Server, path string) error {
 	return nil
 }
 
-func SetHmacHeaders(r *http.Request, hmacSecret string) {
+func setHmacHeaders(r *http.Request, hmacSecret string) {
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
 	mac := hmac.New(sha256.New, []byte(hmacSecret))
