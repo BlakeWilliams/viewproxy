@@ -1,6 +1,7 @@
 package routeimporter
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,7 +15,7 @@ import (
 	"github.com/blakewilliams/viewproxy"
 )
 
-func LoadHttp(server *viewproxy.Server, path string) error {
+func LoadHttp(ctx context.Context, server *viewproxy.Server, path string) error {
 	var routeEntries []ConfigRouteEntry
 
 	target, err := url.Parse(server.Target())
@@ -24,7 +25,7 @@ func LoadHttp(server *viewproxy.Server, path string) error {
 	}
 
 	target.Path = path
-	req, err := http.NewRequest(http.MethodGet, target.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 
 	if err != nil {
 		return fmt.Errorf("Could not create a request when loading config: %w", err)
@@ -56,7 +57,7 @@ func LoadHttp(server *viewproxy.Server, path string) error {
 		return fmt.Errorf("could not load routes into server: %w", err)
 	}
 
-	return nil
+	return ctx.Err()
 }
 
 func setHmacHeaders(r *http.Request, hmacSecret string) {

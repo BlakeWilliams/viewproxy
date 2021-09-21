@@ -1,6 +1,7 @@
 package routeimporter
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/blakewilliams/viewproxy"
 	"github.com/stretchr/testify/require"
@@ -38,12 +40,34 @@ func TestLoadHttp(t *testing.T) {
 	defer targetServer.Close()
 
 	viewproxyServer := viewproxy.NewServer(targetServer.URL)
-
-	err := LoadHttp(viewproxyServer, "/_viewproxy_routes")
-	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
+	err := LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
+	require.NoError(t, err)
+
 	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
+}
+
+func TestLoadHttp_ContextTimeout(t *testing.T) {
+	targetServer := startTargetServer()
+	defer targetServer.CloseClientConnections()
+	defer targetServer.Close()
+
+	viewproxyServer := viewproxy.NewServer(targetServer.URL)
+	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
+	defer cancel()
+
+	err := LoadHttp(ctx, viewproxyServer, "/_viewproxy_routes?sleepy=1")
+	require.Error(t, err)
+
+	<-ctx.Done()
+	duration := time.Now().Sub(start)
+
+	fmt.Println(duration)
+	require.LessOrEqual(t, duration, time.Millisecond*40)
 }
 
 func TestLoadHttp_HMAC(t *testing.T) {
@@ -72,16 +96,20 @@ func TestLoadHttp_HMAC(t *testing.T) {
 
 	viewproxyServer := viewproxy.NewServer(testServer.URL)
 	viewproxyServer.HmacSecret = hmacSecret
-
-	err := LoadHttp(viewproxyServer, "/_viewproxy_routes")
-	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	err := LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
+	require.NoError(t, err)
 
 	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
 }
 
 func startTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("sleepy") == "1" {
+			time.Sleep(time.Millisecond * 500)
+		}
+
 		if r.URL.Path == "/_viewproxy_routes" {
 			w.Header().Set("Content-Type", "text/json")
 			w.WriteHeader(http.StatusOK)
