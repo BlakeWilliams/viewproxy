@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/blakewilliams/viewproxy"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadJSONFile(t *testing.T) {
-	viewproxyServer := viewproxy.NewServer("http://fake.net")
+	viewproxyServer, err := viewproxy.NewServer("http://fake.net")
+	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	// Load routes from config

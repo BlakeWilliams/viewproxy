@@ -39,10 +39,11 @@ func TestLoadHttp(t *testing.T) {
 	defer targetServer.CloseClientConnections()
 	defer targetServer.Close()
 
-	viewproxyServer := viewproxy.NewServer(targetServer.URL)
+	viewproxyServer, err := viewproxy.NewServer(targetServer.URL)
+	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	err := LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
+	err = LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
 	require.NoError(t, err)
 
 	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
@@ -53,14 +54,15 @@ func TestLoadHttp_ContextTimeout(t *testing.T) {
 	defer targetServer.CloseClientConnections()
 	defer targetServer.Close()
 
-	viewproxyServer := viewproxy.NewServer(targetServer.URL)
+	viewproxyServer, err := viewproxy.NewServer(targetServer.URL)
+	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
 	defer cancel()
 
-	err := LoadHttp(ctx, viewproxyServer, "/_viewproxy_routes?sleepy=1")
+	err = LoadHttp(ctx, viewproxyServer, "/_viewproxy_routes?sleepy=1")
 	require.Error(t, err)
 
 	<-ctx.Done()
@@ -94,11 +96,12 @@ func TestLoadHttp_HMAC(t *testing.T) {
 	defer testServer.CloseClientConnections()
 	defer testServer.Close()
 
-	viewproxyServer := viewproxy.NewServer(testServer.URL)
+	viewproxyServer, err := viewproxy.NewServer(testServer.URL)
+	require.NoError(t, err)
 	viewproxyServer.HmacSecret = hmacSecret
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	err := LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
+	err = LoadHttp(context.TODO(), viewproxyServer, "/_viewproxy_routes")
 	require.NoError(t, err)
 
 	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
