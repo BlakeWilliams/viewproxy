@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var httpJsonConfig = []byte(`[
+var jsonConfig = []byte(`[
 	{
 		"url": "/users/new",
 		"metadata": {
@@ -43,15 +43,7 @@ func TestLoadHttp(t *testing.T) {
 	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	routes := viewproxyServer.Routes()
-	require.Len(t, routes, 1)
-	route := routes[0]
-
-	require.Equal(t, "/users/new", route.Path)
-	require.Equal(t, "sessions", route.Metadata["controller"])
-	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
-	require.Len(t, route.ContentFragments, 1)
-	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
+	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
 }
 
 func TestLoadHttp_HMAC(t *testing.T) {
@@ -71,7 +63,7 @@ func TestLoadHttp_HMAC(t *testing.T) {
 
 		require.Equal(t, hex.EncodeToString(mac.Sum(nil)), authorization)
 
-		w.Write(httpJsonConfig)
+		w.Write(jsonConfig)
 	})
 
 	testServer := httptest.NewServer(instance)
@@ -85,15 +77,7 @@ func TestLoadHttp_HMAC(t *testing.T) {
 	require.NoError(t, err)
 	viewproxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	routes := viewproxyServer.Routes()
-	require.Len(t, routes, 1)
-	route := routes[0]
-
-	require.Equal(t, "/users/new", route.Path)
-	require.Equal(t, "sessions", route.Metadata["controller"])
-	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
-	require.Len(t, route.ContentFragments, 1)
-	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
+	requireJsonConfigRoutesLoaded(t, viewproxyServer.Routes())
 }
 
 func startTargetServer() *httptest.Server {
@@ -102,7 +86,7 @@ func startTargetServer() *httptest.Server {
 			w.Header().Set("Content-Type", "text/json")
 			w.WriteHeader(http.StatusOK)
 
-			w.Write(httpJsonConfig)
+			w.Write(jsonConfig)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
@@ -111,4 +95,15 @@ func startTargetServer() *httptest.Server {
 
 	testServer := httptest.NewServer(instance)
 	return testServer
+}
+
+func requireJsonConfigRoutesLoaded(t *testing.T, routes []viewproxy.Route) {
+	require.Len(t, routes, 1)
+	route := routes[0]
+
+	require.Equal(t, "/users/new", route.Path)
+	require.Equal(t, "sessions", route.Metadata["controller"])
+	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
+	require.Len(t, route.ContentFragments, 1)
+	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
 }
