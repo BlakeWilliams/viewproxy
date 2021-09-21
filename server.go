@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
@@ -48,9 +49,10 @@ type Server struct {
 	routes        []Route
 	target        string
 	httpServer    *http.Server
+	reverseProxy  *httputil.ReverseProxy
 	Logger        logger
 	ignoreHeaders map[string]bool
-	PassThrough   bool
+	passThrough   bool
 	SecretFilter  secretfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
@@ -71,14 +73,16 @@ type Server struct {
 	OnError func(w http.ResponseWriter, r *http.Request, e error)
 }
 
+type ServerOption = func(*Server) error
+
 type routeContextKey struct{}
 type parametersContextKey struct{}
 
 const defaultTimeout = 10 * time.Second
 
 // NewServer returns a new Server that will make requests to the given target argument.
-func NewServer(target string) *Server {
-	return &Server{
+func NewServer(target string, opts ...ServerOption) (*Server, error) {
+	server := &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
 		SecretFilter:       secretfilter.New(),
@@ -86,13 +90,42 @@ func NewServer(target string) *Server {
 		ProxyTimeout:       defaultTimeout,
 		ReadTimeout:        defaultTimeout,
 		WriteTimeout:       defaultTimeout,
-		PassThrough:        false,
+		passThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
 		target:             target,
 		ignoreHeaders:      make(map[string]bool),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
+
+	for _, fn := range opts {
+		err := fn(server)
+
+		if err != nil {
+			return nil, fmt.Errorf("viewproxy.ServerOption error: %w", err)
+		}
+	}
+
+	return server, nil
+}
+
+func WithPassThrough(passthroughTarget string) ServerOption {
+	return func(server *Server) error {
+		targetURL, err := url.Parse(passthroughTarget)
+
+		if err != nil {
+			return fmt.Errorf("WithPassThrough error: %w", err)
+		}
+
+		server.passThrough = true
+		server.reverseProxy = httputil.NewSingleHostReverseProxy(targetURL)
+
+		return nil
+	}
+}
+
+func (s *Server) PassThroughEnabled() bool {
+	return s.passThrough
 }
 
 type GetOption = func(*Route)
@@ -165,7 +198,7 @@ func (s *Server) Close() {
 }
 
 // TODO this should probably be a tree structure for faster lookups
-func (s *Server) matchingRoute(path string) (*Route, map[string]string) {
+func (s *Server) MatchingRoute(path string) (*Route, map[string]string) {
 	parts := strings.Split(path, "/")
 
 	for _, route := range s.routes {
@@ -187,7 +220,7 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 		ctx, span = tracer.Start(ctx, "ServeHTTP")
 		defer span.End()
 
-		route, parameters := s.matchingRoute(r.URL.Path)
+		route, parameters := s.MatchingRoute(r.URL.Path)
 
 		if r.URL.Path == "/_ping" {
 			w.WriteHeader(http.StatusOK)
@@ -212,7 +245,7 @@ func (s *Server) requestHandler() http.Handler {
 			parameters := ParametersFromContext(ctx)
 			s.handleRequest(w, r, route, parameters, ctx)
 		} else {
-			s.passThrough(w, r)
+			s.handlePassThrough(w, r)
 		}
 	})
 }
@@ -273,41 +306,9 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	resBuilder.Write()
 }
 
-func (s *Server) passThrough(w http.ResponseWriter, r *http.Request) {
-	if s.PassThrough {
-		targetUrl, err := url.Parse(
-			fmt.Sprintf("%s/%s", strings.TrimRight(s.target, "/"), strings.TrimLeft(r.URL.String(), "/")),
-		)
-
-		targetUrl.RawQuery = r.URL.Query().Encode()
-
-		if err != nil {
-			s.handleProxyError(err, w)
-			return
-		}
-
-		req := s.newRequest()
-		req.Non2xxErrors = false
-
-		req.WithHeadersFromRequest(r)
-		result, err := req.DoSingle(
-			r.Context(),
-			r.Method,
-			targetUrl.String(),
-			r.Body,
-		)
-
-		if err != nil {
-			s.handleProxyError(err, w)
-			return
-		}
-
-		resBuilder := newResponseBuilder(*s, w)
-		resBuilder.StatusCode = result.StatusCode
-		results := []*multiplexer.Result{result}
-		resBuilder.SetHeaders(result.HeadersWithoutProxyHeaders(), results)
-		resBuilder.SetFragments(results)
-		resBuilder.Write()
+func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
+	if s.passThrough {
+		s.reverseProxy.ServeHTTP(w, r)
 	} else {
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))

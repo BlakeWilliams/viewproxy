@@ -17,12 +17,16 @@ import (
 
 func main() {
 	target := getTarget()
-	server := viewproxy.NewServer(target)
+	server, err := viewproxy.NewServer(target, viewproxy.WithPassThrough(target))
+
+	if err != nil {
+		panic(err)
+	}
+
 	server.Addr = fmt.Sprintf("localhost:%d", getPort())
 	server.ProxyTimeout = time.Duration(5) * time.Second
 	server.Logger = buildLogger()
 	server.IgnoreHeader("etag")
-	server.PassThrough = true
 
 	server.Get(
 		"/hello/:name",

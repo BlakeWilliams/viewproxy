@@ -40,7 +40,7 @@ func Middleware(server *viewproxy.Server, l logger) func(http.Handler) http.Hand
 
 			if route != nil {
 				l.Printf("Handling %s", r.URL.Path)
-			} else if server.PassThrough {
+			} else if server.PassThroughEnabled() {
 				l.Printf("Proxying %s", r.URL.Path)
 			} else {
 				l.Printf("Proxying is disabled and no route matches %s", r.URL.Path)
@@ -53,7 +53,7 @@ func Middleware(server *viewproxy.Server, l logger) func(http.Handler) http.Hand
 
 			if route != nil {
 				l.Printf("Rendered %d in %dms for %s", wrapper.StatusCode, duration.Milliseconds(), r.URL.Path)
-			} else if server.PassThrough {
+			} else if server.PassThroughEnabled() {
 				l.Printf("Proxied %d in %dms for %s", wrapper.StatusCode, duration.Milliseconds(), r.URL.Path)
 			}
 		})

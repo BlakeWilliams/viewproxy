@@ -28,8 +28,8 @@ func (l *SliceLogger) Printf(line string, args ...interface{}) {
 
 func TestLoggingMiddleware(t *testing.T) {
 	targetServer := startTargetServer()
-	viewProxyServer := viewproxy.NewServer(targetServer.URL)
-	viewProxyServer.PassThrough = true
+	viewProxyServer, err := viewproxy.NewServer(targetServer.URL)
+	require.NoError(t, err)
 
 	viewProxyServer.Get(
 		"/hello/:name",
@@ -54,31 +54,20 @@ func TestLoggingMiddleware(t *testing.T) {
 	require.Equal(t, "Handling /hello/world", log.logs[0])
 	require.Regexp(t, regexp.MustCompile(`Rendered 200 in \d+ms for /hello/world`), log.logs[1])
 
-	// Proxying request
-	r = httptest.NewRequest("GET", "/fake", nil)
-	w = httptest.NewRecorder()
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
-	resp = w.Result()
-	require.Equal(t, 404, resp.StatusCode)
-
-	require.Equal(t, "Proxying /fake", log.logs[2])
-	require.Regexp(t, regexp.MustCompile(`Proxied 404 in \d+ms for /fake`), log.logs[3])
-
 	// Proxying disabled
-	viewProxyServer.PassThrough = false
 	r = httptest.NewRequest("GET", "/fake", nil)
 	w = httptest.NewRecorder()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 	resp = w.Result()
 	require.Equal(t, 404, resp.StatusCode)
 
-	require.Equal(t, "Proxying is disabled and no route matches /fake", log.logs[4])
+	require.Equal(t, "Proxying is disabled and no route matches /fake", log.logs[2])
 }
 
 func TestLogTripperFragments(t *testing.T) {
 	targetServer := startTargetServer()
-	viewProxyServer := viewproxy.NewServer(targetServer.URL)
-	viewProxyServer.PassThrough = true
+	viewProxyServer, err := viewproxy.NewServer(targetServer.URL, viewproxy.WithPassThrough(targetServer.URL))
+	require.NoError(t, err)
 
 	viewProxyServer.Get(
 		"/hello/:name",
@@ -95,34 +84,8 @@ func TestLogTripperFragments(t *testing.T) {
 	resp := w.Result()
 	require.Equal(t, 200, resp.StatusCode)
 
-	fmt.Println(log.logs)
-
 	require.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[0])
 	require.Regexp(t, regexp.MustCompile(`Fragment 200 in \d+ms for http:\/\/.*`), log.logs[1])
-}
-
-func TestLogTripperProxy(t *testing.T) {
-	targetServer := startTargetServer()
-	viewProxyServer := viewproxy.NewServer(targetServer.URL)
-	viewProxyServer.PassThrough = true
-
-	viewProxyServer.Get(
-		"/hello/:name",
-		fragment.Define("/layouts/test_layout"),
-		fragment.Collection{fragment.Define("body")},
-	)
-
-	log := &SliceLogger{logs: make([]string, 0)}
-	viewProxyServer.MultiplexerTripper = NewLogTripper(log, secretfilter.New(), multiplexer.NewStandardTripper(&http.Client{}))
-
-	r := httptest.NewRequest("GET", "/fake", nil)
-	w := httptest.NewRecorder()
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
-	resp := w.Result()
-	require.Equal(t, 404, resp.StatusCode)
-
-	fmt.Println(log.logs)
-	require.Regexp(t, regexp.MustCompile(`Proxy request 404 in \d+ms for http:\/\/.*`), log.logs[0])
 }
 
 func startTargetServer() *httptest.Server {
