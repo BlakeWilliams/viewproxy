@@ -80,7 +80,7 @@ func TestHealthCheck(t *testing.T) {
 	r := httptest.NewRequest("GET", "/_ping", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -107,7 +107,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -127,7 +127,7 @@ func TestPassThroughEnabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/oops", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -144,7 +144,7 @@ func TestPassThroughDisabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -175,7 +175,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	select {
 	case <-done:
@@ -220,7 +220,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	<-done
 
@@ -259,7 +259,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	viewProxyServer.headerHandler = viewProxyServer.createHeaderHandler()
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	<-layoutDone
 	<-fragmentDone
@@ -303,7 +303,7 @@ func TestSupportsGzip(t *testing.T) {
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -338,7 +338,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.RemoteAddr = "192.168.1.1"
 
-	server.createHandler().ServeHTTP(w, r)
+	server.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -386,7 +386,7 @@ func TestOnErrorHandler(t *testing.T) {
 	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
 	fakeRequest.RemoteAddr = "192.168.1.1"
 
-	server.createHandler().ServeHTTP(fakeWriter, fakeRequest)
+	server.CreateHandler().ServeHTTP(fakeWriter, fakeRequest)
 
 	require.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 	require.Equal(t, "true", fakeWriter.Header().Get("error-header"))
@@ -427,7 +427,7 @@ func TestRoundTripperContext(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.createHandler().ServeHTTP(w, r)
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 

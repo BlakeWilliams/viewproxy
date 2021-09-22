@@ -235,7 +235,7 @@ func (s *Server) requestHandler() http.Handler {
 	})
 }
 
-func (s *Server) createHandler() http.Handler {
+func (s *Server) CreateHandler() http.Handler {
 	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
@@ -373,7 +373,7 @@ func (s *Server) configureServer(serveFn func() error) error {
 
 	s.httpServer = &http.Server{
 		Addr:           s.Addr,
-		Handler:        s.createHandler(),
+		Handler:        s.CreateHandler(),
 		ReadTimeout:    s.ReadTimeout,
 		WriteTimeout:   s.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
