@@ -18,7 +18,6 @@ import "github.com/blakewilliams/viewproxy/pkg/fragment"
 server := viewproxy.NewServer(target)
 server.Port = 3005
 server.ProxyTimeout = time.Duration(5) * time.Second
-server.IgnoreHeader("etag")
 server.PassThrough = true
 
 // Define a route with a :name parameter that will be forwarded to the target host.
