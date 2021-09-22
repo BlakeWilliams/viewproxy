@@ -47,66 +47,22 @@ func TestServer(t *testing.T) {
 		fragment.Define("footer"),
 	}
 	viewProxyServer.Get("/hello/:name", layout, fragments)
-
-	// Load routes from config
-	file, err := ioutil.TempFile(os.TempDir(), "config.json")
-	if err != nil {
-		t.Error(err)
-	}
-	defer os.Remove(file.Name())
-
-	file.Write([]byte(`[{
-		"url": "/greetings/:name",
-		"layout": { "path": "/layouts/test_layout", "metadata": { "foo": "test_layout" }},
-		"fragments": [
-			{ "path": "header", "metadata": { "foo": "header" }},
-			{ "path": "body",   "metadata": { "foo": "body" }},
-			{ "path": "footer", "metadata": { "foo": "footer" }}
-		]
-	}]`))
-
-	file.Close()
-
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
-	err = viewProxyServer.LoadRoutesFromFile(file.Name())
-	require.Nil(t, err)
 
 	go func() {
 		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			panic(err)
 		}
 	}()
-	defer viewProxyServer.Close()
 
-	tests := map[string]struct {
-		url           string
-		expected_body string
-	}{
-		"basic server": {
-			url:           "/hello/world",
-			expected_body: "<html><body>hello world</body></html>",
-		},
+	resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", "/hello/world"))
+	require.NoError(t, err)
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
 
-		"json configured server": {
-			url:           "/greetings/world",
-			expected_body: "<html><body>hello world</body></html>",
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-
-			resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", tc.url))
-			require.Nil(t, err)
-			body, err := ioutil.ReadAll(resp.Body)
-			require.Nil(t, err)
-
-			require.Equal(t, tc.expected_body, string(body))
-			require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-			require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
-		})
-	}
+	require.Equal(t, "<html><body>hello world</body></html>", string(body))
+	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+	require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
 func TestHealthCheck(t *testing.T) {
