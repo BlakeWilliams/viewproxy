@@ -45,15 +45,14 @@ type Server struct {
 	// Sets the maximum duration for reading the entire request, including the body
 	ReadTimeout time.Duration
 	// Sets the maximum duration before timing out writes of the response
-	WriteTimeout  time.Duration
-	routes        []Route
-	target        string
-	httpServer    *http.Server
-	reverseProxy  *httputil.ReverseProxy
-	Logger        logger
-	ignoreHeaders map[string]bool
-	passThrough   bool
-	SecretFilter  secretfilter.Filter
+	WriteTimeout time.Duration
+	routes       []Route
+	target       string
+	httpServer   *http.Server
+	reverseProxy *httputil.ReverseProxy
+	Logger       logger
+	passThrough  bool
+	SecretFilter secretfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
 	//
@@ -70,7 +69,8 @@ type Server struct {
 	AroundRequest func(http.Handler) http.Handler
 	tracingConfig tracing.TracingConfig
 	// A function that is called when an error occurs in the viewproxy handler
-	OnError func(w http.ResponseWriter, r *http.Request, e error)
+	OnError       func(w http.ResponseWriter, r *http.Request, e error)
+	headerBuilder func(*http.Request, http.Header, []*multiplexer.Result) http.Header
 }
 
 type ServerOption = func(*Server) error
@@ -92,8 +92,8 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		WriteTimeout:       defaultTimeout,
 		passThrough:        false,
 		AroundRequest:      func(h http.Handler) http.Handler { return h },
+		headerBuilder:      multiplexer.WithCombinedServerTimingHeader,
 		target:             target,
-		ignoreHeaders:      make(map[string]bool),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
@@ -161,10 +161,21 @@ func (s *Server) Routes() []Route {
 	return s.routes
 }
 
-func (s *Server) IgnoreHeader(names ...string) {
-	for _, name := range names {
-		s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
+func (s *Server) WithResponseHeaders(buildHeaders func(*http.Request, http.Header, []*multiplexer.Result) http.Header) {
+	next := s.headerBuilder
+	s.headerBuilder = func(r *http.Request, headers http.Header, results []*multiplexer.Result) http.Header {
+		headers = buildHeaders(r, headers, results)
+		return next(r, headers, results)
 	}
+}
+
+func (s *Server) IgnoreHeader(names ...string) {
+	s.WithResponseHeaders(func(_ *http.Request, headers http.Header, _ []*multiplexer.Result) http.Header {
+		for _, name := range names {
+			headers.Del(name)
+		}
+		return headers
+	})
 }
 
 func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
@@ -285,7 +296,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	resBuilder := newResponseBuilder(*s, w)
 	resBuilder.SetLayout(results[0])
-	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
+	resBuilder.SetHeaders(s.headerBuilder(r, results[0].HeadersWithoutProxyHeaders(), results))
 	resBuilder.SetFragments(results[1:])
 	elapsed := time.Since(startTime)
 	resBuilder.SetDuration(elapsed.Milliseconds())

@@ -9,7 +9,7 @@ import (
 
 const resultTimingLabel = "fragment"
 
-func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter) {
+func WithCombinedServerTimingHeader(r *http.Request, headers http.Header, results []*Result) http.Header {
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {
@@ -41,14 +41,14 @@ func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter
 		}
 	}
 
-	if len(metrics) == 0 {
-		return
+	if len(metrics) > 0 {
+		segments := make([]string, 0, len(metrics))
+		for _, metric := range metrics {
+			segments = append(segments, metric.String())
+		}
+
+		headers.Set(servertiming.HeaderKey, strings.Join(segments, ","))
 	}
 
-	segments := make([]string, 0, len(metrics))
-	for _, metric := range metrics {
-		segments = append(segments, metric.String())
-	}
-
-	writer.Header().Set(servertiming.HeaderKey, strings.Join(segments, ","))
+	return headers
 }

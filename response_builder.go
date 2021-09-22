@@ -24,17 +24,11 @@ func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 	rb.body = result.Body
 }
 
-func (rb *responseBuilder) SetHeaders(headers http.Header, results []*multiplexer.Result) {
+func (rb *responseBuilder) SetHeaders(headers http.Header) {
 	for name, values := range headers {
-		if !rb.server.ignoreHeaders[http.CanonicalHeaderKey(name)] {
-			for _, value := range values {
-				rb.writer.Header().Add(name, value)
-			}
+		for _, value := range values {
+			rb.writer.Header().Add(name, value)
 		}
-	}
-
-	if len(results) > 1 {
-		multiplexer.SetCombinedServerTimingHeader(results, rb.writer)
 	}
 }
 
