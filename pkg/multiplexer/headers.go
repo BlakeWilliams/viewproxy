@@ -85,7 +85,7 @@ func SetHeaders(results []*Result, rw http.ResponseWriter, r *http.Request, hand
 	wrapped := &headerResponseWriter{headers: results[0].HeadersWithoutProxyHeaders()}
 	r = r.WithContext(ContextWithResults(r.Context(), results))
 
-	handler.ServeHTTP(rw, r)
+	handler.ServeHTTP(wrapped, r)
 
 	wrapped.headers.Del("Content-Length")
 
