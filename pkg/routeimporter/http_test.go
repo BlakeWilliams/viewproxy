@@ -68,7 +68,6 @@ func TestLoadHttp_ContextTimeout(t *testing.T) {
 	<-ctx.Done()
 	duration := time.Now().Sub(start)
 
-	fmt.Println(duration)
 	require.LessOrEqual(t, duration, time.Millisecond*40)
 }
 
