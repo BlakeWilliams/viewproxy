@@ -51,9 +51,7 @@ func LoadHttp(ctx context.Context, server *viewproxy.Server, path string) error 
 		return fmt.Errorf("could not unmarshal route config json: %w", err)
 	}
 
-	err = LoadRoutes(server, routeEntries)
-
-	if err != nil {
+	if err = LoadRoutes(server, routeEntries); err != nil {
 		return fmt.Errorf("could not load routes into server: %w", err)
 	}
 
