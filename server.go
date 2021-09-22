@@ -287,7 +287,6 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	resBuilder := newResponseBuilder(*s, w)
 	resBuilder.SetLayout(results[0])
-	fmt.Println(s.headerHandler)
 	resBuilder.SetHeaders(results, r, s.headerHandler)
 	resBuilder.SetFragments(results[1:])
 	elapsed := time.Since(startTime)
