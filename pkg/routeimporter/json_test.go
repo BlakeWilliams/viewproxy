@@ -18,7 +18,7 @@ func TestLoadJSONFile(t *testing.T) {
 	// Load routes from config
 	file, err := ioutil.TempFile(os.TempDir(), "config.json")
 	if err != nil {
-		t.Error(err)
+		require.Error(t, err)
 	}
 	defer os.Remove(file.Name())
 

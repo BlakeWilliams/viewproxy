@@ -161,8 +161,10 @@ func (s *Server) Routes() []Route {
 	return s.routes
 }
 
-func (s *Server) IgnoreHeader(name string) {
-	s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
+func (s *Server) IgnoreHeader(names ...string) {
+	for _, name := range names {
+		s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
+	}
 }
 
 func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
