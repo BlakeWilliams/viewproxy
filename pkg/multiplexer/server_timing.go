@@ -9,7 +9,8 @@ import (
 
 const resultTimingLabel = "fragment"
 
-func WithCombinedServerTimingHeader(r *http.Request, headers http.Header, results []*Result) http.Header {
+func WithCombinedServerTimingHeader(rw http.ResponseWriter, r *http.Request) {
+	results := ResultsFromContext(r.Context())
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {
@@ -47,8 +48,6 @@ func WithCombinedServerTimingHeader(r *http.Request, headers http.Header, result
 			segments = append(segments, metric.String())
 		}
 
-		headers.Set(servertiming.HeaderKey, strings.Join(segments, ","))
+		rw.Header().Set(servertiming.HeaderKey, strings.Join(segments, ","))
 	}
-
-	return headers
 }

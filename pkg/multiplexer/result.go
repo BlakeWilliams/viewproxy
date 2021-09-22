@@ -1,6 +1,7 @@
 package multiplexer
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -47,4 +48,21 @@ func (r *Result) HeadersWithoutProxyHeaders() http.Header {
 	}
 
 	return headers
+}
+
+type resultsContextKey struct{}
+
+func ResultsFromContext(ctx context.Context) []*Result {
+	if ctx == nil {
+		return nil
+	}
+
+	if results := ctx.Value(resultsContextKey{}); results != nil {
+		return results.([]*Result)
+	}
+	return nil
+}
+
+func ContextWithResults(ctx context.Context, results []*Result) context.Context {
+	return context.WithValue(ctx, resultsContextKey{}, results)
 }

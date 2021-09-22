@@ -1,6 +1,7 @@
 package multiplexer
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -62,3 +63,20 @@ func forwardedForFromRequest(req *http.Request) string {
 
 	return host
 }
+
+type headerResponseWriter struct {
+	headers http.Header
+}
+
+func (hrw *headerResponseWriter) Header() http.Header {
+	return hrw.headers
+}
+
+func (hrw *headerResponseWriter) Write(b []byte) (int, error) {
+	return 0, errors.New("Write not supported on response")
+}
+
+func (rw *headerResponseWriter) WriteHeader(status int) {
+}
+
+var _ http.ResponseWriter = &headerResponseWriter{}

@@ -39,7 +39,14 @@ func TestServer(t *testing.T) {
 	viewProxyServer.Addr = "localhost:9998"
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.IgnoreHeader("etag")
+	viewProxyServer.AroundResponseHeaders = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Del("etag")
+			next.ServeHTTP(rw, r)
+		})
+	}
+	viewProxyServer.headerHandler = viewProxyServer.createHeaderHandler()
+
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
 		fragment.Define("header"),
@@ -73,7 +80,7 @@ func TestHealthCheck(t *testing.T) {
 	r := httptest.NewRequest("GET", "/_ping", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -89,7 +96,6 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	require.NoError(t, err)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.IgnoreHeader("etag")
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
 		fragment.Define("header"),
@@ -101,7 +107,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -111,7 +117,6 @@ func TestQueryParamForwardingServer(t *testing.T) {
 
 	require.Equal(t, expected, string(body))
 	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
-	require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
 func TestPassThroughEnabled(t *testing.T) {
@@ -122,7 +127,7 @@ func TestPassThroughEnabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/oops", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -139,7 +144,7 @@ func TestPassThroughDisabled(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -170,7 +175,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	select {
 	case <-done:
@@ -215,7 +220,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	<-done
 
@@ -253,7 +258,8 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	r.Header.Add(HeaderViewProxyOriginalPath, "/fake/path")
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.headerHandler = viewProxyServer.createHeaderHandler()
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	<-layoutDone
 	<-fragmentDone
@@ -297,7 +303,7 @@ func TestSupportsGzip(t *testing.T) {
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -332,7 +338,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.RemoteAddr = "192.168.1.1"
 
-	server.CreateHandler().ServeHTTP(w, r)
+	server.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
@@ -373,7 +379,7 @@ func TestOnErrorHandler(t *testing.T) {
 	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
 	fakeRequest.RemoteAddr = "192.168.1.1"
 
-	server.CreateHandler().ServeHTTP(fakeWriter, fakeRequest)
+	server.createHandler().ServeHTTP(fakeWriter, fakeRequest)
 
 	require.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
 
@@ -402,7 +408,6 @@ func TestRoundTripperContext(t *testing.T) {
 	tripper := &contextTestTripper{}
 	viewProxyServer.MultiplexerTripper = tripper
 
-	viewProxyServer.IgnoreHeader("etag")
 	layout := fragment.Define("/layouts/test_layout")
 	routeFragments := fragment.Collection{
 		fragment.Define("header"),
@@ -414,7 +419,7 @@ func TestRoundTripperContext(t *testing.T) {
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
 
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	viewProxyServer.createHandler().ServeHTTP(w, r)
 
 	resp := w.Result()
 
