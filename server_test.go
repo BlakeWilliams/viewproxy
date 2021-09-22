@@ -56,9 +56,9 @@ func TestServer(t *testing.T) {
 	}()
 
 	resp, err := http.Get(fmt.Sprintf("http://localhost:9998%s", "/hello/world"))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	body, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Equal(t, "<html><body>hello world</body></html>", string(body))
 	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
