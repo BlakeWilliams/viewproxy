@@ -362,6 +362,13 @@ func TestOnErrorHandler(t *testing.T) {
 			next.ServeHTTP(w, r)
 		})
 	}
+	server.AroundResponseHeaders = func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("error-header", "true")
+		})
+	}
+	server.headerHandler = server.createHeaderHandler()
+
 	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
 		defer close(done)
 		var resultErr *ResultError
@@ -382,6 +389,7 @@ func TestOnErrorHandler(t *testing.T) {
 	server.createHandler().ServeHTTP(fakeWriter, fakeRequest)
 
 	require.Equal(t, "true", fakeWriter.Header().Get("x-viewproxy"))
+	require.Equal(t, "true", fakeWriter.Header().Get("error-header"))
 
 	select {
 	case <-done:

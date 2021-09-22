@@ -3,7 +3,6 @@ package viewproxy
 import (
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -23,21 +22,6 @@ func newResponseBuilder(server Server, w http.ResponseWriter) *responseBuilder {
 
 func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 	rb.body = result.Body
-}
-
-func (rb *responseBuilder) SetHeaders(results []*multiplexer.Result, r *http.Request, handler http.Handler) {
-	rw := &headerResponseWriter{headers: results[0].HeadersWithoutProxyHeaders()}
-	r = r.WithContext(multiplexer.ContextWithResults(r.Context(), results))
-
-	handler.ServeHTTP(rw, r)
-
-	rw.headers.Del("Content-Length")
-
-	for name, values := range rw.headers {
-		for _, value := range values {
-			rb.writer.Header().Add(name, value)
-		}
-	}
 }
 
 func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
@@ -83,20 +67,3 @@ func (rb *responseBuilder) Write() {
 		rb.writer.Write(rb.body)
 	}
 }
-
-type headerResponseWriter struct {
-	headers http.Header
-}
-
-func (hrw *headerResponseWriter) Header() http.Header {
-	return hrw.headers
-}
-
-func (hrw *headerResponseWriter) Write(b []byte) (int, error) {
-	return 0, errors.New("Write not supported on response")
-}
-
-func (rw *headerResponseWriter) WriteHeader(status int) {
-}
-
-var _ http.ResponseWriter = &headerResponseWriter{}

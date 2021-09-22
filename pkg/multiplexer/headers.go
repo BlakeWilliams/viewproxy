@@ -80,3 +80,18 @@ func (rw *headerResponseWriter) WriteHeader(status int) {
 }
 
 var _ http.ResponseWriter = &headerResponseWriter{}
+
+func SetHeaders(results []*Result, rw http.ResponseWriter, r *http.Request, handler http.Handler) {
+	wrapped := &headerResponseWriter{headers: results[0].HeadersWithoutProxyHeaders()}
+	r = r.WithContext(ContextWithResults(r.Context(), results))
+
+	handler.ServeHTTP(rw, r)
+
+	wrapped.headers.Del("Content-Length")
+
+	for name, values := range wrapped.headers {
+		for _, value := range values {
+			rw.Header().Add(name, value)
+		}
+	}
+}

@@ -2,6 +2,7 @@ package viewproxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -276,6 +277,10 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	if err != nil {
 		if s.OnError != nil {
+			var resultErr *ResultError
+			if errors.As(err, &resultErr) {
+				multiplexer.SetHeaders([]*multiplexer.Result{resultErr.Result}, w, r, s.headerHandler)
+			}
 			s.OnError(w, r, err)
 			return
 		} else {
@@ -287,7 +292,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	resBuilder := newResponseBuilder(*s, w)
 	resBuilder.SetLayout(results[0])
-	resBuilder.SetHeaders(results, r, s.headerHandler)
+	multiplexer.SetHeaders(results, w, r, s.headerHandler)
 	resBuilder.SetFragments(results[1:])
 	elapsed := time.Since(startTime)
 	resBuilder.SetDuration(elapsed.Milliseconds())
