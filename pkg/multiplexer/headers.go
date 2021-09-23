@@ -74,6 +74,8 @@ func WithDefaultHeaders(next http.Handler) http.Handler {
 					rw.Header().Add(name, value)
 				}
 			}
+
+			rw.Header().Del("Content-Length")
 		}
 
 		next.ServeHTTP(rw, r)

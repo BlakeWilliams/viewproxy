@@ -87,7 +87,6 @@ func withCombinedFragments(s *Server) http.Handler {
 		results := multiplexer.ResultsFromContext(r.Context())
 
 		if results != nil && results.Error() == nil {
-			rw.Header().Del("Content-Length")
 			resBuilder := newResponseBuilder(*s, rw)
 			resBuilder.SetLayout(results.Results()[0])
 			resBuilder.SetFragments(results.Results()[1:])
