@@ -282,7 +282,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	results, err := req.Do(ctx)
 
 	handlerCtx := context.WithValue(r.Context(), startTimeKey{}, startTime)
-	handlerCtx = multiplexer.ContextWithResults(ctx, results, err)
+	handlerCtx = multiplexer.ContextWithResults(handlerCtx, results, err)
 	handler.ServeHTTP(w, r.WithContext(handlerCtx))
 }
 
