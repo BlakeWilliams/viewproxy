@@ -70,24 +70,6 @@ func TestServer(t *testing.T) {
 	require.Equal(t, "", resp.Header.Get("etag"), "Expected response to have removed etag header")
 }
 
-func TestHealthCheck(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL)
-	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
-
-	r := httptest.NewRequest("GET", "/_ping", nil)
-	w := httptest.NewRecorder()
-
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
-
-	resp := w.Result()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
-	expected := "200 ok"
-
-	require.Equal(t, expected, string(body))
-}
-
 func TestQueryParamForwardingServer(t *testing.T) {
 	viewProxyServer := newServer(t, targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
