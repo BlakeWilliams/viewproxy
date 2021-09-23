@@ -295,11 +295,6 @@ func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("Internal Server Error"))
-}
-
 func RouteFromContext(ctx context.Context) *Route {
 	if ctx == nil {
 		return nil
