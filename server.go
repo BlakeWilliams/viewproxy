@@ -45,15 +45,14 @@ type Server struct {
 	// Sets the maximum duration for reading the entire request, including the body
 	ReadTimeout time.Duration
 	// Sets the maximum duration before timing out writes of the response
-	WriteTimeout  time.Duration
-	routes        []Route
-	target        string
-	httpServer    *http.Server
-	reverseProxy  *httputil.ReverseProxy
-	Logger        logger
-	ignoreHeaders map[string]bool
-	passThrough   bool
-	SecretFilter  secretfilter.Filter
+	WriteTimeout time.Duration
+	routes       []Route
+	target       string
+	httpServer   *http.Server
+	reverseProxy *httputil.ReverseProxy
+	Logger       logger
+	passThrough  bool
+	SecretFilter secretfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
 	//
@@ -66,19 +65,23 @@ type Server struct {
 	// requests.
 	// HttpTransport      http.RoundTripper
 	MultiplexerTripper multiplexer.Tripper
-	// A function to wrap request handling with other middleware
+	// A function to wrap the entire request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
-	tracingConfig tracing.TracingConfig
-	// A function that is called when an error occurs in the viewproxy handler
-	OnError func(w http.ResponseWriter, r *http.Request, e error)
+	// A function to wrap around the generating of the response after the fragment
+	// requests have completed or errored
+	AroundResponse func(http.Handler) http.Handler
+	tracingConfig  tracing.TracingConfig
 }
 
 type ServerOption = func(*Server) error
 
 type routeContextKey struct{}
 type parametersContextKey struct{}
+type startTimeKey struct{}
 
 const defaultTimeout = 10 * time.Second
+
+func emptyMiddleware(h http.Handler) http.Handler { return h }
 
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string, opts ...ServerOption) (*Server, error) {
@@ -91,9 +94,9 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		ReadTimeout:        defaultTimeout,
 		WriteTimeout:       defaultTimeout,
 		passThrough:        false,
-		AroundRequest:      func(h http.Handler) http.Handler { return h },
+		AroundRequest:      emptyMiddleware,
+		AroundResponse:     emptyMiddleware,
 		target:             target,
-		ignoreHeaders:      make(map[string]bool),
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
@@ -161,12 +164,6 @@ func (s *Server) Routes() []Route {
 	return s.routes
 }
 
-func (s *Server) IgnoreHeader(names ...string) {
-	for _, name := range names {
-		s.ignoreHeaders[http.CanonicalHeaderKey(name)] = true
-	}
-}
-
 func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
 	s.tracingConfig.Enabled = true
 	s.tracingConfig.Endpoint = endpoint
@@ -224,12 +221,14 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 }
 
 func (s *Server) requestHandler() http.Handler {
+	responseHandler := s.createResponseHandler()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		route := RouteFromContext(ctx)
 		if route != nil {
 			parameters := ParametersFromContext(ctx)
-			s.handleRequest(w, r, route, parameters, ctx)
+			s.handleRequest(w, r, route, parameters, ctx, responseHandler)
 		} else {
 			s.handlePassThrough(w, r)
 		}
@@ -240,6 +239,16 @@ func (s *Server) CreateHandler() http.Handler {
 	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
+func (s *Server) createResponseHandler() http.Handler {
+	handler := withCombinedFragments(s)
+	handler = withDefaultErrorHandler(handler)
+	handler = s.AroundResponse(handler)
+	handler = multiplexer.WithCombinedServerTimingHeader(handler)
+	handler = multiplexer.WithDefaultHeaders(handler)
+
+	return handler
+}
+
 func (s *Server) newRequest() *multiplexer.Request {
 	req := multiplexer.NewRequest(s.MultiplexerTripper)
 	req.SecretFilter = s.SecretFilter
@@ -247,7 +256,7 @@ func (s *Server) newRequest() *multiplexer.Request {
 	return req
 }
 
-func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context, handler http.Handler) {
 	startTime := time.Now()
 	req := s.newRequest()
 	req.HmacSecret = s.HmacSecret
@@ -272,24 +281,9 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	req.Header.Set(HeaderViewProxyOriginalPath, r.URL.RequestURI())
 	results, err := req.Do(ctx)
 
-	if err != nil {
-		if s.OnError != nil {
-			s.OnError(w, r, err)
-			return
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("500 internal server error"))
-			return
-		}
-	}
-
-	resBuilder := newResponseBuilder(*s, w)
-	resBuilder.SetLayout(results[0])
-	resBuilder.SetHeaders(results[0].HeadersWithoutProxyHeaders(), results)
-	resBuilder.SetFragments(results[1:])
-	elapsed := time.Since(startTime)
-	resBuilder.SetDuration(elapsed.Milliseconds())
-	resBuilder.Write()
+	handlerCtx := context.WithValue(r.Context(), startTimeKey{}, startTime)
+	handlerCtx = multiplexer.ContextWithResults(handlerCtx, results, err)
+	handler.ServeHTTP(w, r.WithContext(handlerCtx))
 }
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
@@ -299,11 +293,6 @@ func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
 	}
-}
-
-func (s *Server) handleProxyError(err error, w http.ResponseWriter) {
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("Internal Server Error"))
 }
 
 func RouteFromContext(ctx context.Context) *Route {
@@ -326,6 +315,17 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 		return parameters.(map[string]string)
 	}
 	return nil
+}
+
+func startTimeFromContext(ctx context.Context) time.Time {
+	if ctx == nil {
+		return time.Time{}
+	}
+
+	if startTime := ctx.Value(startTimeKey{}); startTime != nil {
+		return startTime.(time.Time)
+	}
+	return time.Time{}
 }
 
 func FragmentRouteFromContext(ctx context.Context) *fragment.Definition {
@@ -363,8 +363,6 @@ func (s *Server) configureServer(serveFn func() error) error {
 	}
 
 	defer shutdownTracing()
-
-	s.IgnoreHeader("Content-Length")
 
 	s.httpServer = &http.Server{
 		Addr:           s.Addr,

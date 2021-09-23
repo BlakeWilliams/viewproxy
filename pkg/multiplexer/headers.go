@@ -62,3 +62,22 @@ func forwardedForFromRequest(req *http.Request) string {
 
 	return host
 }
+
+func WithDefaultHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		results := ResultsFromContext(r.Context())
+
+		if results != nil && len(results.Results()) > 0 {
+			headers := results.Results()[0].HeadersWithoutProxyHeaders()
+			for name, values := range headers {
+				for _, value := range values {
+					rw.Header().Add(name, value)
+				}
+			}
+
+			rw.Header().Del("Content-Length")
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}

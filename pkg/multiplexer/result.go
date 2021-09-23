@@ -1,6 +1,7 @@
 package multiplexer
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,6 +10,11 @@ import (
 type ResultError struct {
 	Result *Result
 	msg    string
+}
+
+type Results interface {
+	Error() error
+	Results() []*Result
 }
 
 func newResultError(req *Request, res *Result) *ResultError {
@@ -47,4 +53,39 @@ func (r *Result) HeadersWithoutProxyHeaders() http.Header {
 	}
 
 	return headers
+}
+
+type resultsWrapper struct {
+	err       error
+	results   []*Result
+	startTime time.Time
+}
+
+func (r *resultsWrapper) Results() []*Result {
+	return r.results
+}
+
+func (r *resultsWrapper) Error() error {
+	return r.err
+}
+
+func (r *resultsWrapper) StartTime() time.Time {
+	return r.startTime
+}
+
+type resultsContextKey struct{}
+
+func ResultsFromContext(ctx context.Context) Results {
+	if ctx == nil {
+		return nil
+	}
+
+	if results := ctx.Value(resultsContextKey{}); results != nil {
+		return results.(Results)
+	}
+	return nil
+}
+
+func ContextWithResults(ctx context.Context, results []*Result, err error) context.Context {
+	return context.WithValue(ctx, resultsContextKey{}, &resultsWrapper{results: results, err: err})
 }

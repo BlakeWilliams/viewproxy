@@ -9,7 +9,26 @@ import (
 
 const resultTimingLabel = "fragment"
 
-func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter) {
+func WithCombinedServerTimingHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if results := ResultsFromContext(r.Context()); results != nil {
+			metrics := metricsForResults(results.Results())
+
+			if len(metrics) > 0 {
+				segments := make([]string, 0, len(metrics))
+				for _, metric := range metrics {
+					segments = append(segments, metric.String())
+				}
+
+				rw.Header().Set(servertiming.HeaderKey, strings.Join(segments, ","))
+			}
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
+
+func metricsForResults(results []*Result) []*servertiming.Metric {
 	metrics := []*servertiming.Metric{}
 
 	for _, result := range results {
@@ -41,14 +60,5 @@ func SetCombinedServerTimingHeader(results []*Result, writer http.ResponseWriter
 		}
 	}
 
-	if len(metrics) == 0 {
-		return
-	}
-
-	segments := make([]string, 0, len(metrics))
-	for _, metric := range metrics {
-		segments = append(segments, metric.String())
-	}
-
-	writer.Header().Set(servertiming.HeaderKey, strings.Join(segments, ","))
+	return metrics
 }

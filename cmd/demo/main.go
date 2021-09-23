@@ -26,7 +26,6 @@ func main() {
 	server.Addr = fmt.Sprintf("localhost:%d", getPort())
 	server.ProxyTimeout = time.Duration(5) * time.Second
 	server.Logger = buildLogger()
-	server.IgnoreHeader("etag")
 
 	server.Get(
 		"/hello/:name",
@@ -37,6 +36,14 @@ func main() {
 			fragment.Define("footer"),
 		},
 	)
+
+	server.AroundResponse = func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Strip etag header from response
+			rw.Header().Del("etag")
+			h.ServeHTTP(rw, r)
+		})
+	}
 
 	// setup middleware
 	server.AroundRequest = func(handler http.Handler) http.Handler {
