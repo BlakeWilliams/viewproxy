@@ -41,6 +41,7 @@ func main() {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Strip etag header from response
 			rw.Header().Del("etag")
+			h.ServeHTTP(rw, r)
 		})
 	}
 
