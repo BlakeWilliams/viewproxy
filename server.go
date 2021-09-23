@@ -69,9 +69,8 @@ type Server struct {
 	AroundRequest func(http.Handler) http.Handler
 	// A function to wrap around the generating of the response after the fragment
 	// requests have completed or errored
-	AroundResponse  func(http.Handler) http.Handler
-	tracingConfig   tracing.TracingConfig
-	responseHandler http.Handler
+	AroundResponse func(http.Handler) http.Handler
+	tracingConfig  tracing.TracingConfig
 }
 
 type ServerOption = func(*Server) error
@@ -81,8 +80,7 @@ type parametersContextKey struct{}
 
 const defaultTimeout = 10 * time.Second
 
-func emptyMiddleware(h http.Handler) http.Handler          { return h }
-func emptyHandler(rw http.ResponseWriter, r *http.Request) {}
+func emptyMiddleware(h http.Handler) http.Handler { return h }
 
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string, opts ...ServerOption) (*Server, error) {
@@ -100,7 +98,6 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		target:             target,
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
-		responseHandler:    http.HandlerFunc(emptyHandler),
 	}
 
 	for _, fn := range opts {
@@ -223,12 +220,14 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 }
 
 func (s *Server) requestHandler() http.Handler {
+	responseHandler := s.createResponseHandler()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		route := RouteFromContext(ctx)
 		if route != nil {
 			parameters := ParametersFromContext(ctx)
-			s.handleRequest(w, r, route, parameters, ctx)
+			s.handleRequest(w, r, route, parameters, ctx, responseHandler)
 		} else {
 			s.handlePassThrough(w, r)
 		}
@@ -256,7 +255,7 @@ func (s *Server) newRequest() *multiplexer.Request {
 	return req
 }
 
-func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context) {
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Route, parameters map[string]string, ctx context.Context, handler http.Handler) {
 	startTime := time.Now()
 	req := s.newRequest()
 	req.HmacSecret = s.HmacSecret
@@ -282,7 +281,7 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	results, err := req.Do(ctx)
 
 	r = r.WithContext(multiplexer.ContextWithResults(r.Context(), results, err, startTime))
-	s.responseHandler.ServeHTTP(w, r)
+	handler.ServeHTTP(w, r)
 }
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
@@ -364,8 +363,6 @@ func (s *Server) configureServer(serveFn func() error) error {
 		WriteTimeout:   s.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
-
-	s.responseHandler = s.createResponseHandler()
 
 	return serveFn()
 }

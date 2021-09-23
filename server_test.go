@@ -44,7 +44,6 @@ func TestServer(t *testing.T) {
 			next.ServeHTTP(rw, r)
 		})
 	}
-	viewProxyServer.responseHandler = viewProxyServer.createResponseHandler()
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
@@ -369,7 +368,6 @@ func TestErrorHandler(t *testing.T) {
 			require.Equal(t, 404, resultErr.Result.StatusCode)
 		})
 	}
-	server.responseHandler = server.createResponseHandler()
 
 	fakeWriter := httptest.NewRecorder()
 	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
@@ -472,8 +470,6 @@ func startTargetServer() *httptest.Server {
 func newServer(t *testing.T, target string, opts ...ServerOption) *Server {
 	server, err := NewServer(target, opts...)
 	require.NoError(t, err)
-
-	server.responseHandler = server.createResponseHandler()
 
 	return server
 }
