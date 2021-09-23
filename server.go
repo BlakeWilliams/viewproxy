@@ -77,6 +77,7 @@ type ServerOption = func(*Server) error
 
 type routeContextKey struct{}
 type parametersContextKey struct{}
+type startTimeKey struct{}
 
 const defaultTimeout = 10 * time.Second
 
@@ -280,8 +281,9 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	req.Header.Set(HeaderViewProxyOriginalPath, r.URL.RequestURI())
 	results, err := req.Do(ctx)
 
-	r = r.WithContext(multiplexer.ContextWithResults(r.Context(), results, err, startTime))
-	handler.ServeHTTP(w, r)
+	handlerCtx := context.WithValue(r.Context(), startTimeKey{}, startTime)
+	handlerCtx = multiplexer.ContextWithResults(ctx, results, err)
+	handler.ServeHTTP(w, r.WithContext(handlerCtx))
 }
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
@@ -318,6 +320,17 @@ func ParametersFromContext(ctx context.Context) map[string]string {
 		return parameters.(map[string]string)
 	}
 	return nil
+}
+
+func startTimeFromContext(ctx context.Context) time.Time {
+	if ctx == nil {
+		return time.Time{}
+	}
+
+	if startTime := ctx.Value(startTimeKey{}); startTime != nil {
+		return startTime.(time.Time)
+	}
+	return time.Time{}
 }
 
 func FragmentRouteFromContext(ctx context.Context) *fragment.Definition {

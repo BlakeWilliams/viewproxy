@@ -90,7 +90,7 @@ func withCombinedFragments(s *Server) http.Handler {
 			resBuilder := newResponseBuilder(*s, rw)
 			resBuilder.SetLayout(results.Results()[0])
 			resBuilder.SetFragments(results.Results()[1:])
-			elapsed := time.Since(results.StartTime())
+			elapsed := time.Since(startTimeFromContext(r.Context()))
 			resBuilder.SetDuration(elapsed.Milliseconds())
 			resBuilder.Write()
 		}

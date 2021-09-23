@@ -15,7 +15,6 @@ type ResultError struct {
 type Results interface {
 	Error() error
 	Results() []*Result
-	StartTime() time.Time
 }
 
 func newResultError(req *Request, res *Result) *ResultError {
@@ -87,7 +86,6 @@ func ResultsFromContext(ctx context.Context) Results {
 	return nil
 }
 
-func ContextWithResults(ctx context.Context, results []*Result, err error, startTime time.Time) context.Context {
-	wrapper := &resultsWrapper{results: results, err: err, startTime: startTime}
-	return context.WithValue(ctx, resultsContextKey{}, wrapper)
+func ContextWithResults(ctx context.Context, results []*Result, err error) context.Context {
+	return context.WithValue(ctx, resultsContextKey{}, &resultsWrapper{results: results, err: err})
 }
