@@ -205,12 +205,6 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 
 		route, parameters := s.MatchingRoute(r.URL.Path)
 
-		if r.URL.Path == "/_ping" {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("200 ok"))
-			return
-		}
-
 		if route != nil {
 			ctx = context.WithValue(ctx, routeContextKey{}, route)
 			ctx = context.WithValue(ctx, parametersContextKey{}, parameters)
