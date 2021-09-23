@@ -34,18 +34,17 @@ func TestMain(m *testing.M) {
 }
 
 func TestServer(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, targetServer.URL)
 	viewProxyServer.Addr = "localhost:9998"
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
-	viewProxyServer.AroundResponseHeaders = func(next http.Handler) http.Handler {
+	viewProxyServer.AroundResponse = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.Header().Del("etag")
 			next.ServeHTTP(rw, r)
 		})
 	}
-	viewProxyServer.headerHandler = viewProxyServer.createHeaderHandler()
+	viewProxyServer.responseHandler = viewProxyServer.createResponseHandler()
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
@@ -73,8 +72,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	r := httptest.NewRequest("GET", "/_ping", nil)
@@ -92,8 +90,7 @@ func TestHealthCheck(t *testing.T) {
 }
 
 func TestQueryParamForwardingServer(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	layout := fragment.Define("/layouts/test_layout")
@@ -120,8 +117,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 }
 
 func TestPassThroughEnabled(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL, WithPassThrough(targetServer.URL))
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, targetServer.URL, WithPassThrough(targetServer.URL))
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	r := httptest.NewRequest("GET", "/oops", nil)
@@ -138,8 +134,7 @@ func TestPassThroughEnabled(t *testing.T) {
 }
 
 func TestPassThroughDisabled(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, targetServer.URL)
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
@@ -169,8 +164,7 @@ func TestPassThroughPostRequest(t *testing.T) {
 		require.Equal(t, "hello", string(body))
 	}))
 
-	viewProxyServer, err := NewServer(server.URL, WithPassThrough(server.URL))
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, server.URL, WithPassThrough(server.URL))
 
 	r := httptest.NewRequest("POST", "/hello/world", strings.NewReader("hello"))
 	w := httptest.NewRecorder()
@@ -212,8 +206,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	viewProxyServer, err := NewServer(server.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, server.URL)
 	viewProxyServer.Get("/hello/:name", fragment.Define("/foo"), fragment.Collection{})
 	viewProxyServer.HmacSecret = secret
 
@@ -246,8 +239,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	viewProxyServer, err := NewServer(server.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, server.URL)
 	layout := fragment.Define("/foo", fragment.WithTimingLabel("foo"))
 	content := fragment.Define("/bar", fragment.WithTimingLabel("bar"))
 	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content})
@@ -258,7 +250,6 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	r.Header.Add(HeaderViewProxyOriginalPath, "/fake/path")
 	w := httptest.NewRecorder()
 
-	viewProxyServer.headerHandler = viewProxyServer.createHeaderHandler()
 	viewProxyServer.CreateHandler().ServeHTTP(w, r)
 
 	<-layoutDone
@@ -295,8 +286,7 @@ func TestSupportsGzip(t *testing.T) {
 		w.Write(b.Bytes())
 	}))
 
-	viewProxyServer, err := NewServer(server.URL)
-	require.NoError(t, err)
+	viewProxyServer := newServer(t, server.URL)
 	viewProxyServer.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
@@ -321,8 +311,7 @@ func TestSupportsGzip(t *testing.T) {
 func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
-	server, err := NewServer("http://fake.net")
-	require.NoError(t, err)
+	server := newServer(t, "http://fake.net")
 	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -347,13 +336,12 @@ func TestAroundRequestCallback(t *testing.T) {
 	<-done
 }
 
-func TestOnErrorHandler(t *testing.T) {
+func TestErrorHandler(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	done := make(chan struct{})
 
-	server, err := NewServer(targetServer.URL)
-	require.NoError(t, err)
+	server := newServer(t, targetServer.URL)
 	server.Get("/hello/:name", fragment.Define("/definitely_missing_and_not_defined"), fragment.Collection{})
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -362,25 +350,26 @@ func TestOnErrorHandler(t *testing.T) {
 			next.ServeHTTP(w, r)
 		})
 	}
-	server.AroundResponseHeaders = func(h http.Handler) http.Handler {
+	server.AroundResponse = func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.Header().Set("error-header", "true")
+
+			defer close(done)
+
+			results := multiplexer.ResultsFromContext(r.Context())
+			require.NotNil(t, results)
+
+			var resultErr *ResultError
+			require.ErrorAs(t, results.Error(), &resultErr)
+			require.Equal(
+				t,
+				fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
+				resultErr.Result.Url,
+			)
+			require.Equal(t, 404, resultErr.Result.StatusCode)
 		})
 	}
-	server.headerHandler = server.createHeaderHandler()
-
-	server.OnError = func(w http.ResponseWriter, r *http.Request, e error) {
-		defer close(done)
-		var resultErr *ResultError
-
-		require.ErrorAs(t, e, &resultErr)
-		require.Equal(
-			t,
-			fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
-			resultErr.Result.Url,
-		)
-		require.Equal(t, 404, resultErr.Result.StatusCode)
-	}
+	server.responseHandler = server.createResponseHandler()
 
 	fakeWriter := httptest.NewRecorder()
 	fakeRequest := httptest.NewRequest("GET", "/hello/world", nil)
@@ -478,4 +467,13 @@ func startTargetServer() *httptest.Server {
 
 	testServer := httptest.NewServer(instance)
 	return testServer
+}
+
+func newServer(t *testing.T, target string, opts ...ServerOption) *Server {
+	server, err := NewServer(target, opts...)
+	require.NoError(t, err)
+
+	server.responseHandler = server.createResponseHandler()
+
+	return server
 }

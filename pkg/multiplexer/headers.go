@@ -1,7 +1,6 @@
 package multiplexer
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -64,34 +63,19 @@ func forwardedForFromRequest(req *http.Request) string {
 	return host
 }
 
-type headerResponseWriter struct {
-	headers http.Header
-}
+func WithDefaultHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		results := ResultsFromContext(r.Context())
 
-func (hrw *headerResponseWriter) Header() http.Header {
-	return hrw.headers
-}
-
-func (hrw *headerResponseWriter) Write(b []byte) (int, error) {
-	return 0, errors.New("Write not supported on response")
-}
-
-func (rw *headerResponseWriter) WriteHeader(status int) {
-}
-
-var _ http.ResponseWriter = &headerResponseWriter{}
-
-func SetHeaders(results []*Result, rw http.ResponseWriter, r *http.Request, handler http.Handler) {
-	wrapped := &headerResponseWriter{headers: results[0].HeadersWithoutProxyHeaders()}
-	r = r.WithContext(ContextWithResults(r.Context(), results))
-
-	handler.ServeHTTP(wrapped, r)
-
-	wrapped.headers.Del("Content-Length")
-
-	for name, values := range wrapped.headers {
-		for _, value := range values {
-			rw.Header().Add(name, value)
+		if results != nil && len(results.Results()) > 0 {
+			headers := results.Results()[0].HeadersWithoutProxyHeaders()
+			for name, values := range headers {
+				for _, value := range values {
+					rw.Header().Add(name, value)
+				}
+			}
 		}
-	}
+
+		next.ServeHTTP(rw, r)
+	})
 }

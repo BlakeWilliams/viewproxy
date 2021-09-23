@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
@@ -66,4 +67,33 @@ func (rb *responseBuilder) Write() {
 	} else {
 		rb.writer.Write(rb.body)
 	}
+}
+
+func withDefaultErrorHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		results := multiplexer.ResultsFromContext(r.Context())
+
+		if results != nil && results.Error() != nil {
+			rw.WriteHeader(http.StatusInternalServerError)
+			rw.Write([]byte("500 internal server error"))
+		} else {
+			next.ServeHTTP(rw, r)
+		}
+	})
+}
+
+func withCombinedFragments(s *Server) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		results := multiplexer.ResultsFromContext(r.Context())
+
+		if results != nil && results.Error() == nil {
+			rw.Header().Del("Content-Length")
+			resBuilder := newResponseBuilder(*s, rw)
+			resBuilder.SetLayout(results.Results()[0])
+			resBuilder.SetFragments(results.Results()[1:])
+			elapsed := time.Since(results.StartTime())
+			resBuilder.SetDuration(elapsed.Milliseconds())
+			resBuilder.Write()
+		}
+	})
 }

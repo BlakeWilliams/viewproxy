@@ -37,7 +37,7 @@ func main() {
 		},
 	)
 
-	server.AroundResponseHeaders = func(h http.Handler) http.Handler {
+	server.AroundResponse = func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Strip etag header from response
 			rw.Header().Del("etag")

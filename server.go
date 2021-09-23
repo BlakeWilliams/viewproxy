@@ -2,7 +2,6 @@ package viewproxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -66,15 +65,13 @@ type Server struct {
 	// requests.
 	// HttpTransport      http.RoundTripper
 	MultiplexerTripper multiplexer.Tripper
-	// A function to wrap request handling with other middleware
+	// A function to wrap the entire request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
-	// A function to wrap around the generating of the response headers after
-	// the results have been fetched but before the response body has been set
-	AroundResponseHeaders func(http.Handler) http.Handler
-	tracingConfig         tracing.TracingConfig
-	// A function that is called when an error occurs in the viewproxy handler
-	OnError       func(w http.ResponseWriter, r *http.Request, e error)
-	headerHandler http.Handler
+	// A function to wrap around the generating of the response after the fragment
+	// requests have completed or errored
+	AroundResponse  func(http.Handler) http.Handler
+	tracingConfig   tracing.TracingConfig
+	responseHandler http.Handler
 }
 
 type ServerOption = func(*Server) error
@@ -84,23 +81,26 @@ type parametersContextKey struct{}
 
 const defaultTimeout = 10 * time.Second
 
+func emptyMiddleware(h http.Handler) http.Handler          { return h }
+func emptyHandler(rw http.ResponseWriter, r *http.Request) {}
+
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string, opts ...ServerOption) (*Server, error) {
 	server := &Server{
-		MultiplexerTripper:    multiplexer.NewStandardTripper(&http.Client{}),
-		Logger:                log.Default(),
-		SecretFilter:          secretfilter.New(),
-		Addr:                  "localhost:3005",
-		ProxyTimeout:          defaultTimeout,
-		ReadTimeout:           defaultTimeout,
-		WriteTimeout:          defaultTimeout,
-		passThrough:           false,
-		AroundRequest:         func(h http.Handler) http.Handler { return h },
-		AroundResponseHeaders: func(h http.Handler) http.Handler { return h },
-		target:                target,
-		routes:                make([]Route, 0),
-		tracingConfig:         tracing.TracingConfig{Enabled: false},
-		headerHandler:         http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {}),
+		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
+		Logger:             log.Default(),
+		SecretFilter:       secretfilter.New(),
+		Addr:               "localhost:3005",
+		ProxyTimeout:       defaultTimeout,
+		ReadTimeout:        defaultTimeout,
+		WriteTimeout:       defaultTimeout,
+		passThrough:        false,
+		AroundRequest:      emptyMiddleware,
+		AroundResponse:     emptyMiddleware,
+		target:             target,
+		routes:             make([]Route, 0),
+		tracingConfig:      tracing.TracingConfig{Enabled: false},
+		responseHandler:    http.HandlerFunc(emptyHandler),
 	}
 
 	for _, fn := range opts {
@@ -239,8 +239,14 @@ func (s *Server) CreateHandler() http.Handler {
 	return s.rootHandler(s.AroundRequest(s.requestHandler()))
 }
 
-func (s *Server) createHeaderHandler() http.Handler {
-	return s.AroundResponseHeaders(http.HandlerFunc(multiplexer.WithCombinedServerTimingHeader))
+func (s *Server) createResponseHandler() http.Handler {
+	handler := withCombinedFragments(s)
+	handler = withDefaultErrorHandler(handler)
+	handler = s.AroundResponse(handler)
+	handler = multiplexer.WithCombinedServerTimingHeader(handler)
+	handler = multiplexer.WithDefaultHeaders(handler)
+
+	return handler
 }
 
 func (s *Server) newRequest() *multiplexer.Request {
@@ -275,28 +281,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	req.Header.Set(HeaderViewProxyOriginalPath, r.URL.RequestURI())
 	results, err := req.Do(ctx)
 
-	if err != nil {
-		if s.OnError != nil {
-			var resultErr *ResultError
-			if errors.As(err, &resultErr) {
-				multiplexer.SetHeaders([]*multiplexer.Result{resultErr.Result}, w, r, s.headerHandler)
-			}
-			s.OnError(w, r, err)
-			return
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("500 internal server error"))
-			return
-		}
-	}
-
-	resBuilder := newResponseBuilder(*s, w)
-	resBuilder.SetLayout(results[0])
-	multiplexer.SetHeaders(results, w, r, s.headerHandler)
-	resBuilder.SetFragments(results[1:])
-	elapsed := time.Since(startTime)
-	resBuilder.SetDuration(elapsed.Milliseconds())
-	resBuilder.Write()
+	r = r.WithContext(multiplexer.ContextWithResults(r.Context(), results, err, startTime))
+	s.responseHandler.ServeHTTP(w, r)
 }
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
@@ -379,7 +365,7 @@ func (s *Server) configureServer(serveFn func() error) error {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	s.headerHandler = s.createHeaderHandler()
+	s.responseHandler = s.createResponseHandler()
 
 	return serveFn()
 }

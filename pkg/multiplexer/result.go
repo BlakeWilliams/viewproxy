@@ -12,6 +12,12 @@ type ResultError struct {
 	msg    string
 }
 
+type Results interface {
+	Error() error
+	Results() []*Result
+	StartTime() time.Time
+}
+
 func newResultError(req *Request, res *Result) *ResultError {
 	safeUrl := req.SecretFilter.FilterURLString(res.Url)
 	msg := fmt.Sprintf("status: %d url: %s", res.StatusCode, safeUrl)
@@ -50,19 +56,38 @@ func (r *Result) HeadersWithoutProxyHeaders() http.Header {
 	return headers
 }
 
+type resultsWrapper struct {
+	err       error
+	results   []*Result
+	startTime time.Time
+}
+
+func (r *resultsWrapper) Results() []*Result {
+	return r.results
+}
+
+func (r *resultsWrapper) Error() error {
+	return r.err
+}
+
+func (r *resultsWrapper) StartTime() time.Time {
+	return r.startTime
+}
+
 type resultsContextKey struct{}
 
-func ResultsFromContext(ctx context.Context) []*Result {
+func ResultsFromContext(ctx context.Context) Results {
 	if ctx == nil {
 		return nil
 	}
 
 	if results := ctx.Value(resultsContextKey{}); results != nil {
-		return results.([]*Result)
+		return results.(Results)
 	}
 	return nil
 }
 
-func ContextWithResults(ctx context.Context, results []*Result) context.Context {
-	return context.WithValue(ctx, resultsContextKey{}, results)
+func ContextWithResults(ctx context.Context, results []*Result, err error, startTime time.Time) context.Context {
+	wrapper := &resultsWrapper{results: results, err: err, startTime: startTime}
+	return context.WithValue(ctx, resultsContextKey{}, wrapper)
 }
