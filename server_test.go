@@ -336,7 +336,7 @@ func TestErrorHandler(t *testing.T) {
 			results := multiplexer.ResultsFromContext(r.Context())
 			require.NotNil(t, results)
 
-			var resultErr *ResultError
+			var resultErr *multiplexer.ResultError
 			require.ErrorAs(t, results.Error(), &resultErr)
 			require.Equal(
 				t,

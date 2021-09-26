@@ -14,17 +14,18 @@ import (
 	"github.com/blakewilliams/viewproxy/internal/tracing"
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
+	"github.com/blakewilliams/viewproxy/pkg/notifier"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
 	HeaderViewProxyOriginalPath = "X-Viewproxy-Original-Path"
 )
 
-// Re-export ResultError for convenience
-type ResultError = multiplexer.ResultError
+const (
+	EventServeHTTP = "serveHTTP"
+	EventProxy     = "proxy"
+)
 
 type logger interface {
 	Fatal(v ...interface{})
@@ -66,16 +67,16 @@ type Server struct {
 	// generated at the start of the request, and `X-Authorization`, which is a
 	// hex encoded HMAC of "urlPathWithQueryParams,timestamp`.
 	HmacSecret string
-	// The transport passed to `http.Client` when fetching fragments or proxying
-	// requests.
-	// HttpTransport      http.RoundTripper
+	// The multiplexer.Tripper passed to the multiplexer package
 	MultiplexerTripper multiplexer.Tripper
 	// A function to wrap the entire request handling with other middleware
 	AroundRequest func(http.Handler) http.Handler
 	// A function to wrap around the generating of the response after the fragment
 	// requests have completed or errored
 	AroundResponse func(http.Handler) http.Handler
-	tracingConfig  tracing.TracingConfig
+
+	// Used to expose hooks in the framework for logging and observability.
+	Notifier notifier.Notifier
 }
 
 type ServerOption = func(*Server) error
@@ -112,6 +113,7 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		targetURL:           targetURL,
 		routes:              make([]Route, 0),
 		tracingConfig:       tracing.TracingConfig{Enabled: false},
+		Notifier:            notifier.New(),
 	}
 
 	for _, fn := range opts {
@@ -179,14 +181,6 @@ func (s *Server) Routes() []Route {
 	return s.routes
 }
 
-func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
-	s.tracingConfig.Enabled = true
-	s.tracingConfig.Endpoint = endpoint
-	s.tracingConfig.ServiceName = serviceName
-	s.tracingConfig.ServiceVersion = serviceVersion
-	s.tracingConfig.Insecure = insecure
-}
-
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
@@ -217,11 +211,6 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		tracer := otel.Tracer("server")
-		var span trace.Span
-		ctx, span = tracer.Start(ctx, "ServeHTTP")
-		defer span.End()
-
 		route, parameters := s.MatchingRoute(r.URL.EscapedPath())
 
 		if route != nil {
@@ -229,7 +218,10 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, parametersContextKey{}, parameters)
 		}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
+		s.Notifier.Emit(EventServeHTTP, ctx, func(ctx context.Context) {
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+
 	})
 }
 
@@ -262,7 +254,7 @@ func (s *Server) createResponseHandler() http.Handler {
 }
 
 func (s *Server) newRequest() *multiplexer.Request {
-	req := multiplexer.NewRequest(s.MultiplexerTripper)
+	req := multiplexer.NewRequest(s.MultiplexerTripper, multiplexer.WithNotifier(s.Notifier))
 	req.SecretFilter = s.SecretFilter
 	req.Timeout = s.ProxyTimeout
 	return req
@@ -308,7 +300,9 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 func (s *Server) handlePassThrough(w http.ResponseWriter, r *http.Request) {
 	if s.passThrough {
-		s.reverseProxy.ServeHTTP(w, r)
+		s.Notifier.Emit(EventProxy, context.Background(), func(ctx context.Context) {
+			s.reverseProxy.ServeHTTP(w, r)
+		})
 	} else {
 		w.WriteHeader(404)
 		w.Write([]byte("404 not found"))
@@ -377,13 +371,6 @@ func (s *Server) Serve(listener net.Listener) error {
 }
 
 func (s *Server) configureServer(serveFn func() error) error {
-	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
-	if err != nil {
-		log.Printf("Error instrumenting tracing: %v", err)
-	}
-
-	defer shutdownTracing()
-
 	s.httpServer = &http.Server{
 		Addr:           s.Addr,
 		Handler:        s.CreateHandler(),
