@@ -48,25 +48,30 @@ func newRoute(path string, metadata map[string]string, layout *fragment.Definiti
 }
 
 // Validates if the route and fragments have compatible dynamic route parts.
-func (r *Route) Validate() (bool, error) {
+func (r *Route) Validate() error {
+	// Legacy routes skip validation
+	if r.Metadata["legacy"] == "true" {
+		return nil
+	}
+
 	if r.HasDynamicParts() {
 		dynamicParts := r.DynamicParts()
 
 		for _, fragment := range r.FragmentsToRequest() {
 			if !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
-				return false, &RouteValidationError{Route: r, Fragment: fragment}
+				return &RouteValidationError{Route: r, Fragment: fragment}
 			}
 		}
 
-		return true, nil
+		return nil
 	} else {
 		for _, fragment := range r.FragmentsToRequest() {
 			if fragment.HasDynamicParts() {
-				return false, &RouteValidationError{Route: r, Fragment: fragment}
+				return &RouteValidationError{Route: r, Fragment: fragment}
 			}
 		}
 
-		return true, nil
+		return nil
 	}
 }
 
@@ -89,6 +94,19 @@ func (r *Route) DynamicParts() []string {
 		}
 	}
 	return parts
+}
+
+func (r *Route) DynamicPartsFromRequest(path string) map[string]string {
+	dynamicParts := make(map[string]string)
+	routeParts := strings.Split(path, "/")
+
+	for i, part := range r.Parts {
+		if strings.HasPrefix(part, ":") {
+			dynamicParts[part] = routeParts[i]
+		}
+	}
+
+	return dynamicParts
 }
 
 func (r *Route) matchParts(pathParts []string) bool {

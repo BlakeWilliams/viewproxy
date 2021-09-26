@@ -150,13 +150,17 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) {
 	route := newRoute(path, map[string]string{}, layout, content)
 
-	layout.PreloadUrl(s.target)
 	for _, fragment := range content {
 		fragment.PreloadUrl(s.target)
 	}
 
 	for _, opt := range opts {
 		opt(route)
+	}
+
+	err := route.Validate()
+	if err != nil {
+		panic(err)
 	}
 
 	s.routes = append(s.routes, *route)
@@ -265,9 +269,14 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	for _, f := range route.FragmentsToRequest() {
 		query := url.Values{}
-		for name, value := range parameters {
-			query.Add(name, value)
+
+		// support legacy behavior of passing query parameters
+		if f.Metadata["legacy"] == "true" {
+			for name, value := range parameters {
+				query.Add(name, value)
+			}
 		}
+
 		for name, values := range r.URL.Query() {
 			if query.Get(name) == "" {
 				for _, value := range values {
@@ -276,7 +285,17 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithRequestable(f.IntoRequestable(query))
+		dynamicParts := route.DynamicPartsFromRequest(r.URL.Path)
+		requestable, err := f.Requestable(s.targetURL, dynamicParts, query)
+		if len(r.URL.Query()) > 0 {
+			requestable.RequestURL.RawQuery = query.Encode()
+		}
+
+		if err != nil {
+			// TODO handle?
+			panic(err)
+		}
+		req.WithRequestable(requestable)
 	}
 
 	req.WithHeadersFromRequest(r)

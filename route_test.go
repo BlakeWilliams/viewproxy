@@ -71,40 +71,34 @@ func TestRoute_Validate(t *testing.T) {
 			routePath: "/foo",
 			layout:    fragment.Define("/foo/layout"),
 			fragments: fragment.Collection{fragment.Define("body")},
-			valid:     true,
 		},
 		"dynamic route matching": {
 			routePath: "/hello/:name",
 			layout:    fragment.Define("/_viewproxy/hello/:name/layout"),
 			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
-			valid:     true,
 		},
 		"dynamic route layout not matching": {
 			routePath:   "/hello/:name",
 			layout:      fragment.Define("/_viewproxy/hello/:login/layout"),
 			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
-			valid:       false,
 			errorString: "dynamic route /hello/:name has mismatched fragment route /_viewproxy/hello/:login/layout",
 		},
 		"dynamic route body not matching": {
 			routePath:   "/hello/:name",
 			layout:      fragment.Define("/_viewproxy/hello/:name/layout"),
 			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:login/body")},
-			valid:       false,
 			errorString: "dynamic route /hello/:name has mismatched fragment route /_viewproxy/hello/:login/body",
 		},
 		"static route with dynamic layout": {
 			routePath:   "/foo",
 			layout:      fragment.Define("/_viewproxy/hello/:name/layout"),
 			fragments:   fragment.Collection{fragment.Define("body")},
-			valid:       false,
 			errorString: "static route /foo has mismatched fragment route /_viewproxy/hello/:name/layout",
 		},
 		"static route with dynamic body": {
 			routePath:   "/foo",
 			layout:      fragment.Define("/_viewproxy/foo/layout"),
 			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
-			valid:       false,
 			errorString: "static route /foo has mismatched fragment route /_viewproxy/hello/:name/body",
 		},
 	}
@@ -112,13 +106,11 @@ func TestRoute_Validate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			route := newRoute(tc.routePath, map[string]string{}, tc.layout, tc.fragments)
 
-			valid, err := route.Validate()
+			err := route.Validate()
 
-			if tc.valid {
-				require.True(t, valid)
+			if tc.errorString == "" {
 				require.NoError(t, err)
 			} else {
-				require.False(t, valid)
 				require.EqualError(t, err, tc.errorString)
 			}
 		})

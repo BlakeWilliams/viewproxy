@@ -12,17 +12,18 @@ type Collection = []*Definition
 type DefinitionOption = func(*Definition)
 
 type Definition struct {
-	Path        string `json:"path"`
+	Path        string
 	routeParts  []string
 	Url         string
-	Metadata    map[string]string `json:"metadata"`
-	TimingLabel string            `json:"timingLabel"`
+	Metadata    map[string]string
+	TimingLabel string
 }
 
 func Define(path string, options ...DefinitionOption) *Definition {
+	safePath := strings.TrimPrefix(path, "/")
 	definition := &Definition{
 		Path:       path,
-		routeParts: strings.Split(path, "/")[1:],
+		routeParts: strings.Split(safePath, "/"),
 		Metadata:   make(map[string]string),
 	}
 
@@ -66,23 +67,23 @@ func (d *Definition) DynamicParts() []string {
 	return parts
 }
 
-func (d *Definition) UrlWithParams(parameters url.Values) string {
+func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {
 	// This is already parsed before constructing the url in server.go, so we ignore errors
 	targetUrl, _ := url.Parse(d.Url)
 	targetUrl.RawQuery = parameters.Encode()
 
-	return targetUrl.String()
+	return targetUrl
 }
 
 func (d *Definition) IntoRequestable(params url.Values) multiplexer.Requestable {
 	return &Request{
-		url:        d.UrlWithParams(params),
+		RequestURL: d.UrlWithParams(params),
 		Definition: d,
 	}
 }
 
-func (d *Definition) Requestable(target *url.URL, parameters map[string]string) (multiplexer.Requestable, error) {
-	target = &*target // clone the url
+func (d *Definition) Requestable(target *url.URL, parameters map[string]string, query url.Values) (*Request, error) {
+	request := *target // clone the url
 
 	var path strings.Builder
 
@@ -90,7 +91,7 @@ func (d *Definition) Requestable(target *url.URL, parameters map[string]string) 
 		path.WriteByte('/')
 
 		if strings.HasPrefix(part, ":") {
-			if replacement, ok := parameters[part[1:]]; ok {
+			if replacement, ok := parameters[part]; ok {
 				path.WriteString(replacement)
 			} else {
 				return nil, fmt.Errorf("no url replacement found for %s in %s", part, d.Path)
@@ -100,10 +101,11 @@ func (d *Definition) Requestable(target *url.URL, parameters map[string]string) 
 		}
 	}
 
-	target.Path = path.String()
+	request.Path = path.String()
+	request.RawQuery = query.Encode()
 
 	return &Request{
-		url:        target.String(),
+		RequestURL: &request,
 		Definition: d,
 	}, nil
 }
@@ -122,12 +124,12 @@ func (d *Definition) PreloadUrl(target string) {
 }
 
 type Request struct {
-	url        string
+	RequestURL *url.URL
 	Definition *Definition
 }
 
 var _ multiplexer.Requestable = &Request{}
 
-func (fr *Request) URL() string                 { return fr.url }
+func (fr *Request) URL() string                 { return fr.RequestURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }
 func (fr *Request) TimingLabel() string         { return fr.Definition.TimingLabel }

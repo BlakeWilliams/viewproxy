@@ -47,11 +47,11 @@ func TestServer(t *testing.T) {
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
-		fragment.Define("header"),
-		fragment.Define("body"),
-		fragment.Define("footer"),
+		fragment.Define("/header", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("/body", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("/footer", fragment.WithMetadata(map[string]string{"legacy": "true"})),
 	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get("/hello/:name", layout, fragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	go func() {
@@ -76,11 +76,11 @@ func TestQueryParamForwardingServer(t *testing.T) {
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
-		fragment.Define("header"),
-		fragment.Define("body"),
-		fragment.Define("footer"),
+		fragment.Define("header", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("body", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("footer", fragment.WithMetadata(map[string]string{"legacy": "true"})),
 	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get("/hello/:name", layout, fragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
@@ -170,7 +170,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 		time := r.Header.Get("X-Authorization-Time")
 		require.NotEqual(t, "", time, "Expected X-Authorization-Time header to be present")
 
-		key := fmt.Sprintf("%s?%s,%s", r.URL.Path, r.URL.RawQuery, time)
+		key := fmt.Sprintf("%s,%s", r.URL.Path, time)
 
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(
@@ -188,7 +188,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	}))
 
 	viewProxyServer := newServer(t, server.URL)
-	viewProxyServer.Get("/hello/:name", fragment.Define("/foo"), fragment.Collection{})
+	viewProxyServer.Get("/hello/:name", fragment.Define("/foo"), fragment.Collection{}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	viewProxyServer.HmacSecret = secret
 
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
@@ -223,7 +223,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	viewProxyServer := newServer(t, server.URL)
 	layout := fragment.Define("/foo", fragment.WithTimingLabel("foo"))
 	content := fragment.Define("/bar", fragment.WithTimingLabel("bar"))
-	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content})
+	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
@@ -268,7 +268,7 @@ func TestSupportsGzip(t *testing.T) {
 	}))
 
 	viewProxyServer := newServer(t, server.URL)
-	viewProxyServer.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
+	viewProxyServer.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.Header.Set("Accept-Encoding", "gzip")
@@ -293,7 +293,7 @@ func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
 	server := newServer(t, "http://fake.net")
-	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
+	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
@@ -323,7 +323,12 @@ func TestErrorHandler(t *testing.T) {
 	done := make(chan struct{})
 
 	server := newServer(t, targetServer.URL)
-	server.Get("/hello/:name", fragment.Define("/definitely_missing_and_not_defined"), fragment.Collection{})
+	server.Get(
+		"/hello/:name",
+		fragment.Define("/definitely_missing_and_not_defined", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Collection{},
+		WithRouteMetadata(map[string]string{"legacy": "true"}),
+	)
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("x-viewproxy", "true")
@@ -391,7 +396,7 @@ func TestRoundTripperContext(t *testing.T) {
 		fragment.Define("body"),
 		fragment.Define("footer"),
 	}
-	viewProxyServer.Get("/hello/:name", layout, routeFragments)
+	viewProxyServer.Get("/hello/:name", layout, routeFragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
