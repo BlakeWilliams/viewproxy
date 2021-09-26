@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blakewilliams/viewproxy/internal/tracing"
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/notifier"
@@ -112,7 +111,6 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		target:              target,
 		targetURL:           targetURL,
 		routes:              make([]Route, 0),
-		tracingConfig:       tracing.TracingConfig{Enabled: false},
 		Notifier:            notifier.New(),
 	}
 
