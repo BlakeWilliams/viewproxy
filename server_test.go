@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -370,9 +371,13 @@ func TestErrorHandler(t *testing.T) {
 type contextTestTripper struct {
 	route        *Route
 	requestables []multiplexer.Requestable
+	mu           sync.Mutex
 }
 
 func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	t.route = RouteFromContext(r.Context())
 	t.requestables = append(t.requestables, multiplexer.RequestableFromContext(r.Context()))
 	return http.DefaultClient.Do(r)
