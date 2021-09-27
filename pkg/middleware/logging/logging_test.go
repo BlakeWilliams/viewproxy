@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/blakewilliams/viewproxy"
@@ -17,13 +18,18 @@ import (
 
 type SliceLogger struct {
 	logs []string
+	mu   sync.Mutex
 }
 
 func (l *SliceLogger) Print(v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.logs = append(l.logs, fmt.Sprint(v...))
 }
 
 func (l *SliceLogger) Printf(line string, args ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.logs = append(l.logs, fmt.Sprintf(line, args...))
 }
 
