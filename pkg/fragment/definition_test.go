@@ -32,7 +32,7 @@ func TestFragment_HasDynamicParts(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			definition := Define(tc.input)
-			require.Equal(t, tc.want, definition.HasDynamicParts())
+			require.Equal(t, tc.want, definition.hasDynamicParts())
 		})
 	}
 }

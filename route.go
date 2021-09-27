@@ -14,7 +14,7 @@ type RouteValidationError struct {
 }
 
 func (rve *RouteValidationError) Error() string {
-	if rve.Route.HasDynamicParts() {
+	if rve.Route.hasDynamicParts() {
 		return fmt.Sprintf(
 			"dynamic route %s has mismatched fragment route %s",
 			rve.Route.Path,
@@ -54,7 +54,7 @@ func (r *Route) Validate() error {
 		return nil
 	}
 
-	dynamicParts := r.DynamicParts()
+	dynamicParts := r.dynamicParts()
 
 	for _, fragment := range r.FragmentsToRequest() {
 		if !fragment.IgnoreValidation && !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
@@ -65,7 +65,7 @@ func (r *Route) Validate() error {
 	return nil
 }
 
-func (r *Route) HasDynamicParts() bool {
+func (r *Route) hasDynamicParts() bool {
 	for _, part := range r.Parts {
 		if strings.HasPrefix(part, ":") {
 			return true
@@ -75,7 +75,7 @@ func (r *Route) HasDynamicParts() bool {
 	return false
 }
 
-func (r *Route) DynamicParts() []string {
+func (r *Route) dynamicParts() []string {
 	parts := make([]string, 0)
 
 	for _, part := range r.Parts {

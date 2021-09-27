@@ -138,7 +138,7 @@ func TestFragment_HasDynamicParts(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			definition := newRoute(tc.input, map[string]string{}, fragment.Define("my_layout"), fragment.Collection{})
-			require.Equal(t, tc.want, definition.HasDynamicParts())
+			require.Equal(t, tc.want, definition.hasDynamicParts())
 		})
 	}
 }

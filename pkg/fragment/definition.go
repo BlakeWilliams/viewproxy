@@ -53,7 +53,7 @@ func WithTimingLabel(timingLabel string) DefinitionOption {
 	}
 }
 
-func (d *Definition) HasDynamicParts() bool {
+func (d *Definition) hasDynamicParts() bool {
 	for _, part := range d.routeParts {
 		if strings.HasPrefix(part, ":") {
 			return true
