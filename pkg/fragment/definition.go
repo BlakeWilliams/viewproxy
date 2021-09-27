@@ -74,7 +74,7 @@ func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {
 	return targetUrl
 }
 
-func (d *Definition) Requestable(target *url.URL, parameters map[string]string, query url.Values) (*Request, error) {
+func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, query url.Values) (*Request, error) {
 	request := *target // clone the url
 
 	var path strings.Builder
@@ -83,7 +83,7 @@ func (d *Definition) Requestable(target *url.URL, parameters map[string]string, 
 		path.WriteByte('/')
 
 		if strings.HasPrefix(part, ":") {
-			if replacement, ok := parameters[part]; ok {
+			if replacement, ok := pathParams[part]; ok {
 				path.WriteString(replacement)
 			} else {
 				return nil, fmt.Errorf("no url replacement found for %s in %s", part, d.Path)
