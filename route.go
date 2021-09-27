@@ -54,25 +54,15 @@ func (r *Route) Validate() error {
 		return nil
 	}
 
-	if r.HasDynamicParts() {
-		dynamicParts := r.DynamicParts()
+	dynamicParts := r.DynamicParts()
 
-		for _, fragment := range r.FragmentsToRequest() {
-			if !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
-				return &RouteValidationError{Route: r, Fragment: fragment}
-			}
+	for _, fragment := range r.FragmentsToRequest() {
+		if !fragment.IgnoreValidation && !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
+			return &RouteValidationError{Route: r, Fragment: fragment}
 		}
-
-		return nil
-	} else {
-		for _, fragment := range r.FragmentsToRequest() {
-			if fragment.HasDynamicParts() {
-				return &RouteValidationError{Route: r, Fragment: fragment}
-			}
-		}
-
-		return nil
 	}
+
+	return nil
 }
 
 func (r *Route) HasDynamicParts() bool {

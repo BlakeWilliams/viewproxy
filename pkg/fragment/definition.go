@@ -12,11 +12,12 @@ type Collection = []*Definition
 type DefinitionOption = func(*Definition)
 
 type Definition struct {
-	Path        string
-	routeParts  []string
-	Url         string
-	Metadata    map[string]string
-	TimingLabel string
+	Path             string
+	routeParts       []string
+	Url              string
+	Metadata         map[string]string
+	TimingLabel      string
+	IgnoreValidation bool `json:"ignoreValidation"`
 }
 
 func Define(path string, options ...DefinitionOption) *Definition {
@@ -32,6 +33,12 @@ func Define(path string, options ...DefinitionOption) *Definition {
 	}
 
 	return definition
+}
+
+func WithoutValidation() DefinitionOption {
+	return func(definition *Definition) {
+		definition.IgnoreValidation = true
+	}
 }
 
 func WithMetadata(metadata map[string]string) DefinitionOption {
