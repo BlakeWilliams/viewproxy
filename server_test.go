@@ -23,9 +23,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var legacyTargetServer *httptest.Server
 var targetServer *httptest.Server
 
 func TestMain(m *testing.M) {
+	legacyTargetServer = startLegacyTargetServer()
+	defer legacyTargetServer.CloseClientConnections()
+	defer legacyTargetServer.Close()
+
 	targetServer = startTargetServer()
 	defer targetServer.CloseClientConnections()
 	defer targetServer.Close()
@@ -35,6 +40,44 @@ func TestMain(m *testing.M) {
 
 func TestServer(t *testing.T) {
 	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer.Addr = "localhost:9997"
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	viewProxyServer.AroundResponse = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Del("etag")
+			next.ServeHTTP(rw, r)
+		})
+	}
+
+	// layout is shared and has no :name fragment
+	layout := fragment.Define("/layouts/test_layout", fragment.WithoutValidation())
+
+	fragments := fragment.Collection{
+		fragment.Define("/header/:name"),
+		fragment.Define("/body/:name"),
+		fragment.Define("/footer/:name"),
+	}
+	err := viewProxyServer.Get("/hello/:name", layout, fragments)
+	require.NoError(t, err)
+	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	resp, err := http.Get(fmt.Sprintf("http://localhost:9997%s", "/hello/world"))
+	require.NoError(t, err)
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, "<html><body>hello world</body></html>", string(body))
+}
+
+func TestServer_LegacyRoutes(t *testing.T) {
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 	viewProxyServer.Addr = "localhost:9998"
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
@@ -71,7 +114,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestQueryParamForwardingServer(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	layout := fragment.Define("/layouts/test_layout")
@@ -98,7 +141,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 }
 
 func TestPassThroughEnabled(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL, WithPassThrough(targetServer.URL))
+	viewProxyServer := newServer(t, legacyTargetServer.URL, WithPassThrough(legacyTargetServer.URL))
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	r := httptest.NewRequest("GET", "/oops", nil)
@@ -115,7 +158,7 @@ func TestPassThroughEnabled(t *testing.T) {
 }
 
 func TestPassThroughDisabled(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
@@ -322,7 +365,7 @@ func TestErrorHandler(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 
-	server := newServer(t, targetServer.URL)
+	server := newServer(t, legacyTargetServer.URL)
 	server.Get(
 		"/hello/:name",
 		fragment.Define("/definitely_missing_and_not_defined", fragment.WithMetadata(map[string]string{"legacy": "true"})),
@@ -349,7 +392,7 @@ func TestErrorHandler(t *testing.T) {
 			require.ErrorAs(t, results.Error(), &resultErr)
 			require.Equal(
 				t,
-				fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
+				fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", legacyTargetServer.URL),
 				resultErr.Result.Url,
 			)
 			require.Equal(t, 404, resultErr.Result.StatusCode)
@@ -384,7 +427,7 @@ func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
 }
 
 func TestRoundTripperContext(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
+	viewProxyServer, err := NewServer(legacyTargetServer.URL)
 	require.NoError(t, err)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	tripper := &contextTestTripper{}
@@ -411,14 +454,14 @@ func TestRoundTripperContext(t *testing.T) {
 }
 
 func TestWithPassThrough_Error(t *testing.T) {
-	_, err := NewServer(targetServer.URL, WithPassThrough("%invalid%"))
+	_, err := NewServer(legacyTargetServer.URL, WithPassThrough("%invalid%"))
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "viewproxy.ServerOption error")
 	require.Contains(t, err.Error(), "WithPassThrough error")
 }
 
-func startTargetServer() *httptest.Server {
+func startLegacyTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -445,6 +488,34 @@ func startTargetServer() *httptest.Server {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Something went wrong"))
 		} else {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("target: 404 not found"))
+		}
+	})
+
+	testServer := httptest.NewServer(instance)
+	return testServer
+}
+
+func startTargetServer() *httptest.Server {
+	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		name := parts[len(parts)-1]
+
+		if r.URL.Path == "/layouts/test_layout" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("<html><view-proxy-content></view-proxy-content></html>"))
+		} else if strings.HasPrefix(r.URL.Path, "/header/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("<body>"))
+		} else if strings.HasPrefix(r.URL.Path, "/body/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf("hello %s", name)))
+		} else if strings.HasPrefix(r.URL.Path, "/footer/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("</body>"))
+		} else {
+			fmt.Println(parts)
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
 		}
