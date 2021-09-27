@@ -86,7 +86,7 @@ func (r *Route) DynamicParts() []string {
 	return parts
 }
 
-func (r *Route) DynamicPartsFromRequest(path string) map[string]string {
+func (r *Route) dynamicPartsFromRequest(path string) map[string]string {
 	dynamicParts := make(map[string]string)
 	routeParts := strings.Split(path, "/")
 

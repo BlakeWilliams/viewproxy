@@ -89,7 +89,7 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 	targetURL, err := url.Parse(target)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	server := &Server{
@@ -147,7 +147,7 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 	}
 }
 
-func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) {
+func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) error {
 	route := newRoute(path, map[string]string{}, layout, content)
 
 	for _, fragment := range content {
@@ -160,10 +160,12 @@ func (s *Server) Get(path string, layout *fragment.Definition, content []*fragme
 
 	err := route.Validate()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	s.routes = append(s.routes, *route)
+
+	return nil
 }
 
 // target returns the configured http target
@@ -285,14 +287,15 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		dynamicParts := route.DynamicPartsFromRequest(r.URL.Path)
+		dynamicParts := route.dynamicPartsFromRequest(r.URL.Path)
 		requestable, err := f.Requestable(s.targetURL, dynamicParts, query)
 		if len(r.URL.Query()) > 0 {
 			requestable.RequestURL.RawQuery = query.Encode()
 		}
 
 		if err != nil {
-			// TODO handle?
+			// validation should prevent this panic, but validation can be
+			// ignored.
 			panic(err)
 		}
 		req.WithRequestable(requestable)
