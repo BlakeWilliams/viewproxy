@@ -335,7 +335,7 @@ func TestSupportsGzip(t *testing.T) {
 func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
-	server := newServer(t, "http://fake.net")
+	server := newServer(t, targetServer.URL)
 	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
