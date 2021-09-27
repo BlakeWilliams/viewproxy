@@ -82,13 +82,6 @@ func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {
 	return targetUrl
 }
 
-func (d *Definition) IntoRequestable(params url.Values) multiplexer.Requestable {
-	return &Request{
-		RequestURL: d.UrlWithParams(params),
-		Definition: d,
-	}
-}
-
 func (d *Definition) Requestable(target *url.URL, parameters map[string]string, query url.Values) (*Request, error) {
 	request := *target // clone the url
 

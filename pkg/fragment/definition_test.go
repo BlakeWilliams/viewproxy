@@ -9,7 +9,7 @@ import (
 
 var target, _ = url.Parse("http://fake.net")
 
-func TestFragment_InjectNamedParameters(t *testing.T) {
+func TestFragment_IntoRequestable(t *testing.T) {
 	definition := Define("/hello/:name")
 	requestable, err := definition.Requestable(
 		target,
