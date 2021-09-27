@@ -6,30 +6,20 @@ import (
 )
 
 type ConfigRouteEntry struct {
-	Url              string               `json:"url"`
-	LayoutData       *fragment.Definition `json:"layout"`
-	FragmentsData    fragment.Collection  `json:"fragments"`
-	Metadata         map[string]string    `json:"metadata"`
-	IgnoreValidation bool                 `json:"ignoreValidation"`
+	Url               string               `json:"url"`
+	LayoutTemplate    *fragment.Definition `json:"layout"`
+	FragmentsTemplate fragment.Collection  `json:"fragments"`
+	Metadata          map[string]string    `json:"metadata"`
+	IgnoreValidation  bool                 `json:"ignoreValidation"`
 }
 
 func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		layout := fragment.Define(routeEntry.LayoutData.Path, fragment.WithMetadata(routeEntry.LayoutData.Metadata))
-		layout.TimingLabel = routeEntry.LayoutData.TimingLabel
-		if routeEntry.LayoutData.IgnoreValidation {
-			layout.IgnoreValidation = true
-		}
+		layout := createFragment(routeEntry.LayoutTemplate)
 
-		fragments := make(fragment.Collection, len(routeEntry.FragmentsData))
-
-		for i, fragmentData := range routeEntry.FragmentsData {
-			fragments[i] = fragment.Define(fragmentData.Path, fragment.WithMetadata(fragmentData.Metadata))
-			fragments[i].TimingLabel = fragmentData.TimingLabel
-
-			if fragmentData.IgnoreValidation {
-				fragments[i].IgnoreValidation = true
-			}
+		fragments := make(fragment.Collection, len(routeEntry.FragmentsTemplate))
+		for i, fragmentTemplate := range routeEntry.FragmentsTemplate {
+			fragments[i] = createFragment(fragmentTemplate)
 		}
 
 		server.Get(
@@ -41,4 +31,15 @@ func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error
 	}
 
 	return nil
+}
+
+func createFragment(template *fragment.Definition) *fragment.Definition {
+	fragment := fragment.Define(template.Path, fragment.WithMetadata(template.Metadata))
+	fragment.TimingLabel = template.TimingLabel
+
+	if template.IgnoreValidation {
+		fragment.IgnoreValidation = true
+	}
+
+	return fragment
 }
