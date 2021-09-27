@@ -14,6 +14,7 @@ type DefinitionOption = func(*Definition)
 type Definition struct {
 	Path             string
 	routeParts       []string
+	dynamicParts     []string
 	Url              string
 	Metadata         map[string]string
 	TimingLabel      string
@@ -27,6 +28,14 @@ func Define(path string, options ...DefinitionOption) *Definition {
 		routeParts: strings.Split(safePath, "/"),
 		Metadata:   make(map[string]string),
 	}
+
+	dynamicParts := make([]string, 0)
+	for _, part := range definition.routeParts {
+		if strings.HasPrefix(part, ":") {
+			dynamicParts = append(dynamicParts, part)
+		}
+	}
+	definition.dynamicParts = dynamicParts
 
 	for _, option := range options {
 		option(definition)
@@ -53,25 +62,8 @@ func WithTimingLabel(timingLabel string) DefinitionOption {
 	}
 }
 
-func (d *Definition) hasDynamicParts() bool {
-	for _, part := range d.routeParts {
-		if strings.HasPrefix(part, ":") {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (d *Definition) DynamicParts() []string {
-	parts := make([]string, 0)
-
-	for _, part := range d.routeParts {
-		if strings.HasPrefix(part, ":") {
-			parts = append(parts, part)
-		}
-	}
-	return parts
+	return d.dynamicParts
 }
 
 func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {

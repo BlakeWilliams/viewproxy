@@ -14,7 +14,7 @@ type RouteValidationError struct {
 }
 
 func (rve *RouteValidationError) Error() string {
-	if rve.Route.hasDynamicParts() {
+	if len(rve.Route.dynamicParts) > 0 {
 		return fmt.Sprintf(
 			"dynamic route %s has mismatched fragment route %s",
 			rve.Route.Path,
@@ -32,19 +32,30 @@ func (rve *RouteValidationError) Error() string {
 type Route struct {
 	Path             string
 	Parts            []string
+	dynamicParts     []string
 	LayoutFragment   *fragment.Definition
 	ContentFragments fragment.Collection
 	Metadata         map[string]string
 }
 
 func newRoute(path string, metadata map[string]string, layout *fragment.Definition, contentFragments fragment.Collection) *Route {
-	return &Route{
+	route := &Route{
 		Path:             path,
 		Parts:            strings.Split(path, "/"),
 		LayoutFragment:   layout,
 		ContentFragments: contentFragments,
 		Metadata:         metadata,
 	}
+
+	dynamicParts := make([]string, 0)
+	for _, part := range route.Parts {
+		if strings.HasPrefix(part, ":") {
+			dynamicParts = append(dynamicParts, part)
+		}
+	}
+	route.dynamicParts = dynamicParts
+
+	return route
 }
 
 // Validates if the route and fragments have compatible dynamic route parts.
@@ -54,36 +65,13 @@ func (r *Route) Validate() error {
 		return nil
 	}
 
-	dynamicParts := r.dynamicParts()
-
 	for _, fragment := range r.FragmentsToRequest() {
-		if !fragment.IgnoreValidation && !reflect.DeepEqual(dynamicParts, fragment.DynamicParts()) {
+		if !fragment.IgnoreValidation && !reflect.DeepEqual(r.dynamicParts, fragment.DynamicParts()) {
 			return &RouteValidationError{Route: r, Fragment: fragment}
 		}
 	}
 
 	return nil
-}
-
-func (r *Route) hasDynamicParts() bool {
-	for _, part := range r.Parts {
-		if strings.HasPrefix(part, ":") {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (r *Route) dynamicParts() []string {
-	parts := make([]string, 0)
-
-	for _, part := range r.Parts {
-		if strings.HasPrefix(part, ":") {
-			parts = append(parts, part)
-		}
-	}
-	return parts
 }
 
 func (r *Route) dynamicPartsFromRequest(path string) map[string]string {

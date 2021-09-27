@@ -127,22 +127,6 @@ func TestRoute_Validate(t *testing.T) {
 	}
 }
 
-func TestFragment_HasDynamicParts(t *testing.T) {
-	testCases := map[string]struct {
-		input string
-		want  bool
-	}{
-		"no dynamic parts": {input: "/foo/bar", want: false},
-		"dynamic parts":    {input: "/:hello/namme", want: true},
-	}
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			definition := newRoute(tc.input, map[string]string{}, fragment.Define("my_layout"), fragment.Collection{})
-			require.Equal(t, tc.want, definition.hasDynamicParts())
-		})
-	}
-}
-
 func TestLayout(t *testing.T) {
 	route := newRoute("/", map[string]string{}, fragment.Define("my_layout"), fragment.Collection{})
 
