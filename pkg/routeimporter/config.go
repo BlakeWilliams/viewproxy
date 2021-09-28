@@ -8,7 +8,7 @@ import (
 type ConfigRouteEntry struct {
 	Url               string               `json:"url"`
 	LayoutTemplate    *fragment.Definition `json:"layout"`
-	FragmentsTemplate fragment.Collection  `json:"fragments"`
+	FragmentTemplates fragment.Collection  `json:"fragments"`
 	Metadata          map[string]string    `json:"metadata"`
 	IgnoreValidation  bool                 `json:"ignoreValidation"`
 }
@@ -17,17 +17,21 @@ func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error
 	for _, routeEntry := range routeEntries {
 		layout := createFragment(routeEntry.LayoutTemplate)
 
-		fragments := make(fragment.Collection, len(routeEntry.FragmentsTemplate))
-		for i, fragmentTemplate := range routeEntry.FragmentsTemplate {
+		fragments := make(fragment.Collection, len(routeEntry.FragmentTemplates))
+		for i, fragmentTemplate := range routeEntry.FragmentTemplates {
 			fragments[i] = createFragment(fragmentTemplate)
 		}
 
-		server.Get(
+		err := server.Get(
 			routeEntry.Url,
 			layout,
 			fragments,
 			viewproxy.WithRouteMetadata(routeEntry.Metadata),
 		)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
