@@ -24,9 +24,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var legacyTargetServer *httptest.Server
 var targetServer *httptest.Server
 
 func TestMain(m *testing.M) {
+	legacyTargetServer = startLegacyTargetServer()
+	defer legacyTargetServer.CloseClientConnections()
+	defer legacyTargetServer.Close()
+
 	targetServer = startTargetServer()
 	defer targetServer.CloseClientConnections()
 	defer targetServer.Close()
@@ -36,6 +41,44 @@ func TestMain(m *testing.M) {
 
 func TestServer(t *testing.T) {
 	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer.Addr = "localhost:9997"
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	viewProxyServer.AroundResponse = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Del("etag")
+			next.ServeHTTP(rw, r)
+		})
+	}
+
+	// layout is shared and has no :name fragment
+	layout := fragment.Define("/layouts/test_layout", fragment.WithoutValidation())
+
+	fragments := fragment.Collection{
+		fragment.Define("/header/:name"),
+		fragment.Define("/body/:name"),
+		fragment.Define("/footer/:name"),
+	}
+	err := viewProxyServer.Get("/hello/:name", layout, fragments)
+	require.NoError(t, err)
+	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	go func() {
+		if err := viewProxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	resp, err := http.Get(fmt.Sprintf("http://localhost:9997%s", "/hello/world"))
+	require.NoError(t, err)
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, "<html><body>hello world</body></html>", string(body))
+}
+
+func TestServer_LegacyRoutes(t *testing.T) {
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 	viewProxyServer.Addr = "localhost:9998"
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
@@ -48,11 +91,11 @@ func TestServer(t *testing.T) {
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
-		fragment.Define("header"),
-		fragment.Define("body"),
-		fragment.Define("footer"),
+		fragment.Define("/header", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("/body", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("/footer", fragment.WithMetadata(map[string]string{"legacy": "true"})),
 	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get("/hello/:name", layout, fragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	go func() {
@@ -72,16 +115,16 @@ func TestServer(t *testing.T) {
 }
 
 func TestQueryParamForwardingServer(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	layout := fragment.Define("/layouts/test_layout")
 	fragments := fragment.Collection{
-		fragment.Define("header"),
-		fragment.Define("body"),
-		fragment.Define("footer"),
+		fragment.Define("header", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("body", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Define("footer", fragment.WithMetadata(map[string]string{"legacy": "true"})),
 	}
-	viewProxyServer.Get("/hello/:name", layout, fragments)
+	viewProxyServer.Get("/hello/:name", layout, fragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
@@ -99,7 +142,7 @@ func TestQueryParamForwardingServer(t *testing.T) {
 }
 
 func TestPassThroughEnabled(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL, WithPassThrough(targetServer.URL))
+	viewProxyServer := newServer(t, legacyTargetServer.URL, WithPassThrough(legacyTargetServer.URL))
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 
 	r := httptest.NewRequest("GET", "/oops", nil)
@@ -116,7 +159,7 @@ func TestPassThroughEnabled(t *testing.T) {
 }
 
 func TestPassThroughDisabled(t *testing.T) {
-	viewProxyServer := newServer(t, targetServer.URL)
+	viewProxyServer := newServer(t, legacyTargetServer.URL)
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	w := httptest.NewRecorder()
@@ -171,7 +214,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 		time := r.Header.Get("X-Authorization-Time")
 		require.NotEqual(t, "", time, "Expected X-Authorization-Time header to be present")
 
-		key := fmt.Sprintf("%s?%s,%s", r.URL.Path, r.URL.RawQuery, time)
+		key := fmt.Sprintf("%s,%s", r.URL.Path, time)
 
 		mac := hmac.New(sha256.New, []byte(secret))
 		mac.Write(
@@ -189,7 +232,7 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	}))
 
 	viewProxyServer := newServer(t, server.URL)
-	viewProxyServer.Get("/hello/:name", fragment.Define("/foo"), fragment.Collection{})
+	viewProxyServer.Get("/hello/:name", fragment.Define("/foo"), fragment.Collection{}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	viewProxyServer.HmacSecret = secret
 
 	r := httptest.NewRequest("GET", "/hello/world", strings.NewReader("hello"))
@@ -224,7 +267,7 @@ func TestFragmentSetsCorrectHeaders(t *testing.T) {
 	viewProxyServer := newServer(t, server.URL)
 	layout := fragment.Define("/foo", fragment.WithTimingLabel("foo"))
 	content := fragment.Define("/bar", fragment.WithTimingLabel("bar"))
-	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content})
+	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
 	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
@@ -269,7 +312,7 @@ func TestSupportsGzip(t *testing.T) {
 	}))
 
 	viewProxyServer := newServer(t, server.URL)
-	viewProxyServer.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
+	viewProxyServer.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world", nil)
 	r.Header.Set("Accept-Encoding", "gzip")
@@ -293,8 +336,8 @@ func TestSupportsGzip(t *testing.T) {
 func TestAroundRequestCallback(t *testing.T) {
 	done := make(chan struct{})
 
-	server := newServer(t, "http://fake.net")
-	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")})
+	server := newServer(t, targetServer.URL)
+	server.Get("/hello/:name", fragment.Define("/layout"), fragment.Collection{fragment.Define("/fragment")}, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer close(done)
@@ -323,8 +366,13 @@ func TestErrorHandler(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 
-	server := newServer(t, targetServer.URL)
-	server.Get("/hello/:name", fragment.Define("/definitely_missing_and_not_defined"), fragment.Collection{})
+	server := newServer(t, legacyTargetServer.URL)
+	server.Get(
+		"/hello/:name",
+		fragment.Define("/definitely_missing_and_not_defined", fragment.WithMetadata(map[string]string{"legacy": "true"})),
+		fragment.Collection{},
+		WithRouteMetadata(map[string]string{"legacy": "true"}),
+	)
 	server.AroundRequest = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("x-viewproxy", "true")
@@ -345,7 +393,7 @@ func TestErrorHandler(t *testing.T) {
 			require.ErrorAs(t, results.Error(), &resultErr)
 			require.Equal(
 				t,
-				fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", targetServer.URL),
+				fmt.Sprintf("%s/definitely_missing_and_not_defined?name=world", legacyTargetServer.URL),
 				resultErr.Result.Url,
 			)
 			require.Equal(t, 404, resultErr.Result.StatusCode)
@@ -384,7 +432,7 @@ func (t *contextTestTripper) Request(r *http.Request) (*http.Response, error) {
 }
 
 func TestRoundTripperContext(t *testing.T) {
-	viewProxyServer, err := NewServer(targetServer.URL)
+	viewProxyServer, err := NewServer(legacyTargetServer.URL)
 	require.NoError(t, err)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
 	tripper := &contextTestTripper{}
@@ -396,7 +444,7 @@ func TestRoundTripperContext(t *testing.T) {
 		fragment.Define("body"),
 		fragment.Define("footer"),
 	}
-	viewProxyServer.Get("/hello/:name", layout, routeFragments)
+	viewProxyServer.Get("/hello/:name", layout, routeFragments, WithRouteMetadata(map[string]string{"legacy": "true"}))
 
 	r := httptest.NewRequest("GET", "/hello/world?important=true&name=override", nil)
 	w := httptest.NewRecorder()
@@ -411,14 +459,14 @@ func TestRoundTripperContext(t *testing.T) {
 }
 
 func TestWithPassThrough_Error(t *testing.T) {
-	_, err := NewServer(targetServer.URL, WithPassThrough("%invalid%"))
+	_, err := NewServer(legacyTargetServer.URL, WithPassThrough("%invalid%"))
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "viewproxy.ServerOption error")
 	require.Contains(t, err.Error(), "WithPassThrough error")
 }
 
-func startTargetServer() *httptest.Server {
+func startLegacyTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 
@@ -444,6 +492,33 @@ func startTargetServer() *httptest.Server {
 		} else if r.URL.Path == "/oops" {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Something went wrong"))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("target: 404 not found"))
+		}
+	})
+
+	testServer := httptest.NewServer(instance)
+	return testServer
+}
+
+func startTargetServer() *httptest.Server {
+	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		name := parts[len(parts)-1]
+
+		if r.URL.Path == "/layouts/test_layout" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("<html><view-proxy-content></view-proxy-content></html>"))
+		} else if strings.HasPrefix(r.URL.Path, "/header/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("<body>"))
+		} else if strings.HasPrefix(r.URL.Path, "/body/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf("hello %s", name)))
+		} else if strings.HasPrefix(r.URL.Path, "/footer/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("</body>"))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))

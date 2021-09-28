@@ -1,27 +1,98 @@
 package viewproxy
 
 import (
+	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 )
 
+type RouteValidationError struct {
+	Route    *Route
+	Fragment *fragment.Definition
+}
+
+func (rve *RouteValidationError) Error() string {
+	if len(rve.Route.dynamicParts) > 0 {
+		return fmt.Sprintf(
+			"dynamic route %s has mismatched fragment route %s",
+			rve.Route.Path,
+			rve.Fragment.Path,
+		)
+	} else {
+		return fmt.Sprintf(
+			"static route %s has mismatched fragment route %s",
+			rve.Route.Path,
+			rve.Fragment.Path,
+		)
+	}
+}
+
 type Route struct {
 	Path             string
 	Parts            []string
+	dynamicParts     []string
 	LayoutFragment   *fragment.Definition
 	ContentFragments fragment.Collection
 	Metadata         map[string]string
 }
 
 func newRoute(path string, metadata map[string]string, layout *fragment.Definition, contentFragments fragment.Collection) *Route {
-	return &Route{
+	route := &Route{
 		Path:             path,
 		Parts:            strings.Split(path, "/"),
 		LayoutFragment:   layout,
 		ContentFragments: contentFragments,
 		Metadata:         metadata,
 	}
+
+	dynamicParts := make([]string, 0)
+	for _, part := range route.Parts {
+		if strings.HasPrefix(part, ":") {
+			dynamicParts = append(dynamicParts, part)
+		}
+	}
+	route.dynamicParts = dynamicParts
+
+	return route
+}
+
+// Validates if the route and fragments have compatible dynamic route parts.
+func (r *Route) Validate() error {
+	// Legacy routes skip validation
+	if r.Metadata["legacy"] == "true" {
+		return nil
+	}
+
+	for _, fragment := range r.FragmentsToRequest() {
+		if !fragment.IgnoreValidation && !compareStringSlice(r.dynamicParts, fragment.DynamicParts()) {
+			return &RouteValidationError{Route: r, Fragment: fragment}
+		}
+	}
+
+	return nil
+}
+
+func compareStringSlice(first []string, other []string) bool {
+	sort.Strings(first)
+	sort.Strings(other)
+
+	return reflect.DeepEqual(first, other)
+}
+
+func (r *Route) dynamicPartsFromRequest(path string) map[string]string {
+	dynamicParts := make(map[string]string)
+	routeParts := strings.Split(path, "/")
+
+	for i, part := range r.Parts {
+		if strings.HasPrefix(part, ":") {
+			dynamicParts[part] = routeParts[i]
+		}
+	}
+
+	return dynamicParts
 }
 
 func (r *Route) matchParts(pathParts []string) bool {

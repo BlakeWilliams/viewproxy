@@ -48,6 +48,7 @@ type Server struct {
 	WriteTimeout time.Duration
 	routes       []Route
 	target       string
+	targetURL    *url.URL
 	httpServer   *http.Server
 	reverseProxy *httputil.ReverseProxy
 	Logger       logger
@@ -85,6 +86,12 @@ func emptyMiddleware(h http.Handler) http.Handler { return h }
 
 // NewServer returns a new Server that will make requests to the given target argument.
 func NewServer(target string, opts ...ServerOption) (*Server, error) {
+	targetURL, err := url.Parse(target)
+
+	if err != nil {
+		return nil, err
+	}
+
 	server := &Server{
 		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
 		Logger:             log.Default(),
@@ -97,6 +104,7 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		AroundRequest:      emptyMiddleware,
 		AroundResponse:     emptyMiddleware,
 		target:             target,
+		targetURL:          targetURL,
 		routes:             make([]Route, 0),
 		tracingConfig:      tracing.TracingConfig{Enabled: false},
 	}
@@ -139,10 +147,9 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 	}
 }
 
-func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) {
+func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) error {
 	route := newRoute(path, map[string]string{}, layout, content)
 
-	layout.PreloadUrl(s.target)
 	for _, fragment := range content {
 		fragment.PreloadUrl(s.target)
 	}
@@ -151,7 +158,14 @@ func (s *Server) Get(path string, layout *fragment.Definition, content []*fragme
 		opt(route)
 	}
 
+	err := route.Validate()
+	if err != nil {
+		return err
+	}
+
 	s.routes = append(s.routes, *route)
+
+	return nil
 }
 
 // target returns the configured http target
@@ -257,9 +271,14 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 
 	for _, f := range route.FragmentsToRequest() {
 		query := url.Values{}
-		for name, value := range parameters {
-			query.Add(name, value)
+
+		// support legacy behavior of passing query parameters
+		if f.Metadata["legacy"] == "true" {
+			for name, value := range parameters {
+				query.Add(name, value)
+			}
 		}
+
 		for name, values := range r.URL.Query() {
 			if query.Get(name) == "" {
 				for _, value := range values {
@@ -268,7 +287,18 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		req.WithRequestable(f.IntoRequestable(query))
+		dynamicParts := route.dynamicPartsFromRequest(r.URL.Path)
+		requestable, err := f.Requestable(s.targetURL, dynamicParts, query)
+		if len(r.URL.Query()) > 0 {
+			requestable.RequestURL.RawQuery = query.Encode()
+		}
+
+		if err != nil {
+			// validation should prevent this panic, but validation can be
+			// ignored.
+			panic(err)
+		}
+		req.WithRequestable(requestable)
 	}
 
 	req.WithHeadersFromRequest(r)

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
@@ -39,8 +40,8 @@ func TestLoggingMiddleware(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragment.Define("/layouts/test_layout"),
-		fragment.Collection{fragment.Define("/body")},
+		fragment.Define("/layouts/test_layout/:name"),
+		fragment.Collection{fragment.Define("/body/:name")},
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
@@ -77,8 +78,8 @@ func TestLogTripperFragments(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragment.Define("/layouts/test_layout"),
-		fragment.Collection{fragment.Define("body")},
+		fragment.Define("/layouts/test_layout/:name"),
+		fragment.Collection{fragment.Define("/body/:name")},
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
@@ -96,20 +97,18 @@ func TestLogTripperFragments(t *testing.T) {
 
 func startTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		params := r.URL.Query()
+		parts := strings.Split(r.URL.Path, "/")
+		name := parts[len(parts)-1]
 
-		if r.URL.Path == "/layouts/test_layout" {
+		if strings.HasPrefix(r.URL.Path, "/layouts/test_layout/") {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<html><view-proxy-content></view-proxy-content></html>"))
-		} else if r.URL.Path == "/header" {
+		} else if strings.HasPrefix(r.URL.Path, "/header") {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<body>"))
-		} else if r.URL.Path == "/body" {
+		} else if strings.HasPrefix(r.URL.Path, "/body/") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
-		} else if r.URL.Path == "/boom" {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprintf("hello %s", params.Get("name"))))
+			w.Write([]byte(fmt.Sprintf("hello %s", name)))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("404 not found"))
