@@ -86,7 +86,7 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 			if replacement, ok := pathParams[part]; ok {
 				path.WriteString(replacement)
 			} else {
-				return nil, fmt.Errorf("no url replacement found for %s in %s", part, d.Path)
+				return nil, fmt.Errorf("no parameter was provided for %s in route %s", part, d.Path)
 			}
 		} else {
 			path.WriteString(part)

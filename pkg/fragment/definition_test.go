@@ -20,3 +20,14 @@ func TestFragment_IntoRequestable(t *testing.T) {
 
 	require.Equal(t, "http://fake.net/hello/fox.mulder", requestable.URL())
 }
+
+func TestFragment_IntoRequestable_MissingDynamicPart(t *testing.T) {
+	definition := Define("/hello/:name")
+	_, err := definition.Requestable(
+		target,
+		map[string]string{},
+		url.Values{},
+	)
+	require.Error(t, err)
+	require.EqualError(t, err, "no parameter was provided for :name in route /hello/:name")
+}
