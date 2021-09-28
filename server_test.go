@@ -520,7 +520,6 @@ func startTargetServer() *httptest.Server {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("</body>"))
 		} else {
-			fmt.Println(parts)
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("target: 404 not found"))
 		}

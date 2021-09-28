@@ -40,10 +40,7 @@ func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error
 func createFragment(template *fragment.Definition) *fragment.Definition {
 	fragment := fragment.Define(template.Path, fragment.WithMetadata(template.Metadata))
 	fragment.TimingLabel = template.TimingLabel
-
-	if template.IgnoreValidation {
-		fragment.IgnoreValidation = true
-	}
+	fragment.IgnoreValidation = template.IgnoreValidation
 
 	return fragment
 }
