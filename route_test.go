@@ -77,6 +77,11 @@ func TestRoute_Validate(t *testing.T) {
 			layout:    fragment.Define("/_viewproxy/hello/:name/layout"),
 			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
 		},
+		"dynamic route matching with different order": {
+			routePath: "/:greeting/:name",
+			layout:    fragment.Define("/_viewproxy/:greeting/:name/layout"),
+			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/:greeting/body")},
+		},
 		"dynamic route layout not matching": {
 			routePath:   "/hello/:name",
 			layout:      fragment.Define("/_viewproxy/hello/:login/layout"),

@@ -3,6 +3,7 @@ package viewproxy
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
@@ -66,12 +67,19 @@ func (r *Route) Validate() error {
 	}
 
 	for _, fragment := range r.FragmentsToRequest() {
-		if !fragment.IgnoreValidation && !reflect.DeepEqual(r.dynamicParts, fragment.DynamicParts()) {
+		if !fragment.IgnoreValidation && !compareStringSlice(r.dynamicParts, fragment.DynamicParts()) {
 			return &RouteValidationError{Route: r, Fragment: fragment}
 		}
 	}
 
 	return nil
+}
+
+func compareStringSlice(first []string, other []string) bool {
+	sort.Strings(first)
+	sort.Strings(other)
+
+	return reflect.DeepEqual(first, other)
 }
 
 func (r *Route) dynamicPartsFromRequest(path string) map[string]string {
