@@ -10,7 +10,7 @@ type ConfigRouteEntry struct {
 	LayoutTemplate    *fragment.Definition `json:"layout"`
 	FragmentTemplates fragment.Collection  `json:"fragments"`
 	Metadata          map[string]string    `json:"metadata"`
-	IgnoreValidation  bool                 `json:"ignoreValidation"`
+	IgnoreValidation  bool
 }
 
 func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error {

@@ -18,7 +18,7 @@ type Definition struct {
 	Url              string
 	Metadata         map[string]string
 	TimingLabel      string
-	IgnoreValidation bool `json:"ignoreValidation"`
+	IgnoreValidation bool
 }
 
 func Define(path string, options ...DefinitionOption) *Definition {
