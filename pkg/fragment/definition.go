@@ -93,7 +93,13 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 		}
 	}
 
-	request.Path = path.String()
+	unescapedPath, err := url.PathUnescape(path.String())
+	if err != nil {
+		return nil, fmt.Errorf("could not encode url: %w", err)
+	}
+	request.Path = unescapedPath    // Set unescaped path which treats %2f as a /
+	request.RawPath = path.String() // Set RawPath which lets go correlate %2f to / in the Path, and escape correctly when calling String()
+
 	request.RawQuery = query.Encode()
 
 	return &Request{

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -139,6 +140,32 @@ func TestQueryParamForwardingServer(t *testing.T) {
 
 	require.Equal(t, expected, string(body))
 	require.Equal(t, "viewproxy", resp.Header.Get("x-name"), "Expected response to have an X-Name header")
+}
+
+func TestServer_EscapedNamedFragments(t *testing.T) {
+	viewProxyServer := newServer(t, targetServer.URL)
+
+	layout := fragment.Define("/layouts/test_layout", fragment.WithoutValidation())
+	fragments := fragment.Collection{
+		fragment.Define("/header/:name"),
+		fragment.Define("/body/:name"),
+		fragment.Define("/footer/:name"),
+	}
+	err := viewProxyServer.Get("/hello/:name", layout, fragments)
+	require.NoError(t, err)
+
+	r := httptest.NewRequest("GET", "/hello/world%2fvoltron", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+
+	resp := w.Result()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	expected := "<html><body>hello world/voltron</body></html>"
+
+	require.Equal(t, expected, string(body))
 }
 
 func TestPassThroughEnabled(t *testing.T) {
@@ -504,8 +531,13 @@ func startLegacyTargetServer() *httptest.Server {
 
 func startTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(r.URL.Path, "/")
-		name := parts[len(parts)-1]
+		parts := strings.Split(r.URL.EscapedPath(), "/")
+		name, err := url.PathUnescape(parts[len(parts)-1])
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+		}
 
 		if r.URL.Path == "/layouts/test_layout" {
 			w.WriteHeader(http.StatusOK)
