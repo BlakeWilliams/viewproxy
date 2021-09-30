@@ -217,7 +217,7 @@ func (s *Server) rootHandler(next http.Handler) http.Handler {
 		ctx, span = tracer.Start(ctx, "ServeHTTP")
 		defer span.End()
 
-		route, parameters := s.MatchingRoute(r.URL.Path)
+		route, parameters := s.MatchingRoute(r.URL.EscapedPath())
 
 		if route != nil {
 			ctx = context.WithValue(ctx, routeContextKey{}, route)
@@ -287,15 +287,14 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 			}
 		}
 
-		dynamicParts := route.dynamicPartsFromRequest(r.URL.Path)
+		dynamicParts := route.dynamicPartsFromRequest(r.URL.EscapedPath())
 		requestable, err := f.Requestable(s.targetURL, dynamicParts, query)
 		if len(r.URL.Query()) > 0 {
 			requestable.RequestURL.RawQuery = query.Encode()
 		}
 
 		if err != nil {
-			// validation should prevent this panic, but validation can be
-			// ignored.
+			// This can be caused due to invalid encoding
 			panic(err)
 		}
 		req.WithRequestable(requestable)
