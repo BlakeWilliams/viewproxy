@@ -118,8 +118,6 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 
 			if err != nil {
 				errCh <- err
-			} else {
-				result.TimingLabel = requestable.TimingLabel()
 			}
 
 			results[i] = result

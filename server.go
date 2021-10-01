@@ -251,7 +251,6 @@ func (s *Server) createResponseHandler() http.Handler {
 	handler := withCombinedFragments(s)
 	handler = withDefaultErrorHandler(handler)
 	handler = s.AroundResponse(handler)
-	handler = multiplexer.WithCombinedServerTimingHeader(handler)
 	handler = multiplexer.WithDefaultHeaders(handler)
 
 	return handler

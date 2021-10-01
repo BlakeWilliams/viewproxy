@@ -272,51 +272,6 @@ func TestFragmentSendsVerifiableHmacWhenSet(t *testing.T) {
 	server.Close()
 }
 
-func TestFragmentSetsCorrectHeaders(t *testing.T) {
-	layoutDone := make(chan bool)
-	fragmentDone := make(chan bool)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/foo" {
-			defer close(layoutDone)
-			w.Header().Set("Server-Timing", "db;dur=12, git;dur=0")
-		} else if r.URL.Path == "/bar" {
-			defer close(fragmentDone)
-			w.Header().Set("Server-Timing", "db;dur=34")
-		}
-		require.Equal(t, r.Header.Get(HeaderViewProxyOriginalPath), "/hello/world?foo=bar")
-		require.Equal(t, "", r.Header.Get("Keep-Alive"), "Expected Keep-Alive to be filtered")
-		require.NotEqual(t, "", r.Header.Get("X-Forwarded-For"))
-		require.Equal(t, "localhost:1", r.Header.Get("X-Forwarded-Host"))
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	viewProxyServer := newServer(t, server.URL)
-	layout := fragment.Define("/foo", fragment.WithTimingLabel("foo"))
-	content := fragment.Define("/bar", fragment.WithTimingLabel("bar"))
-	viewProxyServer.Get("/hello/:name", layout, fragment.Collection{content}, WithRouteMetadata(map[string]string{"legacy": "true"}))
-
-	r := httptest.NewRequest("GET", "/hello/world?foo=bar", strings.NewReader("hello"))
-	r.Host = "localhost:1" // go deletes the Host header and sets the Host field
-	r.RemoteAddr = "localhost:1"
-	r.Header.Add(HeaderViewProxyOriginalPath, "/fake/path")
-	w := httptest.NewRecorder()
-
-	viewProxyServer.CreateHandler().ServeHTTP(w, r)
-
-	<-layoutDone
-	<-fragmentDone
-
-	resp := w.Result()
-
-	require.Contains(t, resp.Header.Get("Server-Timing"), "foo-db;desc=\"foo db\";dur=12")
-	require.Contains(t, resp.Header.Get("Server-Timing"), "bar-db;desc=\"bar db\";dur=34")
-	require.Contains(t, resp.Header.Get("Server-Timing"), "foo-fragment;desc=\"foo fragment\";dur=")
-	require.Contains(t, resp.Header.Get("Server-Timing"), "bar-fragment;desc=\"bar fragment\";dur=")
-
-	server.Close()
-}
-
 func TestSupportsGzip(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var b bytes.Buffer

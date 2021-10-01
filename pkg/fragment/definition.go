@@ -17,7 +17,6 @@ type Definition struct {
 	dynamicParts     []string
 	Url              string
 	Metadata         map[string]string
-	TimingLabel      string
 	IgnoreValidation bool
 }
 
@@ -53,12 +52,6 @@ func WithoutValidation() DefinitionOption {
 func WithMetadata(metadata map[string]string) DefinitionOption {
 	return func(definition *Definition) {
 		definition.Metadata = metadata
-	}
-}
-
-func WithTimingLabel(timingLabel string) DefinitionOption {
-	return func(definition *Definition) {
-		definition.TimingLabel = timingLabel
 	}
 }
 
@@ -130,4 +123,3 @@ var _ multiplexer.Requestable = &Request{}
 
 func (fr *Request) URL() string                 { return fr.RequestURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }
-func (fr *Request) TimingLabel() string         { return fr.Definition.TimingLabel }
