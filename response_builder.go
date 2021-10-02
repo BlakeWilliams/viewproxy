@@ -22,41 +22,9 @@ func newResponseBuilder(server Server, w http.ResponseWriter) *responseBuilder {
 	return &responseBuilder{server: server, writer: w, StatusCode: 200}
 }
 
-func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
-	rb.body = result.Body
-}
-
 func (rb *responseBuilder) SetFragments(route *Route, results []*multiplexer.Result) {
-	resultMap := map[string]*multiplexer.Result{}
-
-	for i, key := range route.FragmentOrder() {
-		resultMap[key] = results[i]
-	}
-
-	buildInfo := stitchStructureFor(route.RootFragment)
-	rb.body = stitch(buildInfo, resultMap)
-}
-
-func stitch(structure fragmentStitchStructure, results map[string]*multiplexer.Result) []byte {
-	childContent := make(map[string][]byte)
-
-	for _, childBuild := range structure.DependentStructures {
-		childContent[childBuild.ReplacementID] = stitch(childBuild, results)
-	}
-
-	self := results[structure.Key].Body
-
-	// handle edge fragments
-	if len(childContent) == 0 {
-		return self
-	}
-
-	for replacementKey, content := range childContent {
-		directive := []byte(fmt.Sprintf("<viewproxy-fragment id=\"%s\"/>", replacementKey))
-		self = bytes.Replace(self, directive, content, 1)
-	}
-
-	return self
+	resultMap := mapResultsToFragmentKey(route, results)
+	rb.body = stitch(route.structure, resultMap)
 }
 
 func (rb *responseBuilder) SetDuration(duration int64) {
@@ -113,4 +81,36 @@ func withCombinedFragments(s *Server) http.Handler {
 			resBuilder.Write()
 		}
 	})
+}
+
+func stitch(structure fragmentStitchStructure, results map[string]*multiplexer.Result) []byte {
+	childContent := make(map[string][]byte)
+
+	for _, childBuild := range structure.DependentStructures {
+		childContent[childBuild.ReplacementID] = stitch(childBuild, results)
+	}
+
+	self := results[structure.Key].Body
+
+	// handle edge fragments
+	if len(childContent) == 0 {
+		return self
+	}
+
+	for replacementKey, content := range childContent {
+		directive := []byte(fmt.Sprintf("<viewproxy-fragment id=\"%s\"/>", replacementKey))
+		self = bytes.Replace(self, directive, content, 1)
+	}
+
+	return self
+}
+
+func mapResultsToFragmentKey(route *Route, results []*multiplexer.Result) map[string]*multiplexer.Result {
+	resultMap := map[string]*multiplexer.Result{}
+
+	for i, key := range route.FragmentOrder() {
+		resultMap[key] = results[i]
+	}
+
+	return resultMap
 }

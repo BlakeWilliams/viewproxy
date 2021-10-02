@@ -36,6 +36,12 @@ type Route struct {
 	dynamicParts []string
 	RootFragment *fragment.Definition
 	Metadata     map[string]string
+	// memoized version of the mapping used to stitch fragments back together
+	structure fragmentStitchStructure
+	// memoized version of fragments to request
+	fragmentsToRequest []*fragment.Definition
+	// memoized version mapping fragment names to multiplexer.Result order
+	fragmentOrder []string
 }
 
 func newRoute(path string, metadata map[string]string, root *fragment.Definition) *Route {
@@ -53,6 +59,9 @@ func newRoute(path string, metadata map[string]string, root *fragment.Definition
 		}
 	}
 	route.dynamicParts = dynamicParts
+	route.structure = stitchStructureFor(root)
+
+	route.memoizeFragments()
 
 	return route
 }
@@ -71,6 +80,14 @@ func (r *Route) Validate() error {
 	}
 
 	return nil
+}
+
+func (r *Route) FragmentOrder() []string {
+	return r.fragmentOrder
+}
+
+func (r *Route) FragmentsToRequest() []*fragment.Definition {
+	return r.fragmentsToRequest
 }
 
 func compareStringSlice(first []string, other []string) bool {
@@ -120,8 +137,9 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) FragmentOrder() []string {
+func (r *Route) memoizeFragments() {
 	mapping := r.RootFragment.Mapping()
+
 	keys := make([]string, 0, len(mapping))
 
 	for key, _ := range mapping {
@@ -130,17 +148,12 @@ func (r *Route) FragmentOrder() []string {
 
 	sort.Strings(keys)
 
-	return keys
-}
-
-func (r *Route) FragmentsToRequest() []*fragment.Definition {
-	mapping := r.RootFragment.Mapping()
-	keys := r.FragmentOrder()
+	r.fragmentOrder = keys
 
 	fragments := make([]*fragment.Definition, 0, len(keys))
 	for _, key := range keys {
 		fragments = append(fragments, mapping[key])
 	}
 
-	return fragments
+	r.fragmentsToRequest = fragments
 }
