@@ -15,7 +15,6 @@ type Definition struct {
 	Path             string
 	routeParts       []string
 	dynamicParts     []string
-	Url              string
 	Metadata         map[string]string
 	IgnoreValidation bool
 	children         map[string]*Definition
@@ -94,14 +93,6 @@ func (d *Definition) mapChild(prefix string, name string, mapping map[string]*De
 
 func (d *Definition) DynamicParts() []string {
 	return d.dynamicParts
-}
-
-func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {
-	// This is already parsed before constructing the url in server.go, so we ignore errors
-	targetUrl, _ := url.Parse(d.Url)
-	targetUrl.RawQuery = parameters.Encode()
-
-	return targetUrl
 }
 
 func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, query url.Values) (*Request, error) {
