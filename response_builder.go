@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
@@ -34,18 +33,18 @@ func (rb *responseBuilder) SetFragments(route *Route, results []*multiplexer.Res
 		resultMap[key] = results[i]
 	}
 
-	buildInfo := route.RootFragment.BuildInfo()
+	buildInfo := stitchStructureFor(route.RootFragment)
 	rb.body = stitch(buildInfo, resultMap)
 }
 
-func stitch(b fragment.BuildInfo, results map[string]*multiplexer.Result) []byte {
+func stitch(structure fragmentStitchStructure, results map[string]*multiplexer.Result) []byte {
 	childContent := make(map[string][]byte)
 
-	for _, childBuild := range b.DependentBuilds {
+	for _, childBuild := range structure.DependentStructures {
 		childContent[childBuild.ReplacementID] = stitch(childBuild, results)
 	}
 
-	self := results[b.Key].Body
+	self := results[structure.Key].Body
 
 	// handle edge fragments
 	if len(childContent) == 0 {

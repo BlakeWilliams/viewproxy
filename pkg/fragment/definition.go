@@ -92,33 +92,6 @@ func (d *Definition) mapChild(prefix string, name string, mapping map[string]*De
 	}
 }
 
-type BuildInfo struct {
-	Key             string
-	ReplacementID   string
-	DependentBuilds []BuildInfo
-}
-
-func (d *Definition) BuildInfo() BuildInfo {
-	buildInfo := BuildInfo{Key: "root"}
-
-	for name, child := range d.children {
-		buildInfo.DependentBuilds = append(buildInfo.DependentBuilds, child.childBuildInfo("root", name))
-	}
-
-	return buildInfo
-}
-
-func (d *Definition) childBuildInfo(prefix string, name string) BuildInfo {
-	key := prefix + "." + name
-	buildInfo := BuildInfo{Key: key, ReplacementID: name}
-
-	for name, child := range d.children {
-		buildInfo.DependentBuilds = append(buildInfo.DependentBuilds, child.childBuildInfo(key, name))
-	}
-
-	return buildInfo
-}
-
 func (d *Definition) DynamicParts() []string {
 	return d.dynamicParts
 }
