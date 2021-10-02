@@ -146,12 +146,11 @@ func TestServer_EscapedNamedFragments(t *testing.T) {
 
 	root := fragment.Define("/layouts/test_layout",
 		fragment.WithoutValidation(),
-		fragment.WithMetadata(map[string]string{"legacy": "true"}),
-		fragment.WithChild("header", fragment.Define("/header", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
-		fragment.WithChild("body", fragment.Define("/body", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
-		fragment.WithChild("footer", fragment.Define("/footer", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
+		fragment.WithChild("header", fragment.Define("/header/:name", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
+		fragment.WithChild("body", fragment.Define("/body/:name", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
+		fragment.WithChild("footer", fragment.Define("/footer/:name", fragment.WithMetadata(map[string]string{"legacy": "true"}))),
 	)
-	err := viewProxyServer.Get("/hello/:name", root)
+	err := viewProxyServer.Get("/hello/:name", root, WithRouteMetadata(map[string]string{"legacy": "true"}))
 	require.NoError(t, err)
 
 	r := httptest.NewRequest("GET", "/hello/world%2fvoltron", nil)

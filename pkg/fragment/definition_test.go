@@ -12,14 +12,12 @@ var target, _ = url.Parse("http://fake.net")
 func TestFragment_IntoRequestable(t *testing.T) {
 	definition := Define("/hello/:name")
 	requestable, err := definition.Requestable(
-		"root",
 		target,
 		map[string]string{":name": "fox.mulder"},
 		url.Values{},
 	)
 	require.NoError(t, err)
 
-	require.Equal(t, "root", requestable.Name())
 	require.Equal(t, "http://fake.net/hello/fox.mulder", requestable.URL())
 }
 
@@ -44,7 +42,6 @@ func TestFragment_Mapping(t *testing.T) {
 func TestFragment_IntoRequestable_MissingDynamicPart(t *testing.T) {
 	definition := Define("/hello/:name")
 	_, err := definition.Requestable(
-		"root",
 		target,
 		map[string]string{},
 		url.Values{},
@@ -56,7 +53,6 @@ func TestFragment_IntoRequestable_MissingDynamicPart(t *testing.T) {
 func TestFragment_IntoRequestable_HandlesURLEncodings(t *testing.T) {
 	definition := Define("/hello/:name")
 	requestable, err := definition.Requestable(
-		"root",
 		target,
 		map[string]string{":name": "mulder%2fscully"},
 		url.Values{},

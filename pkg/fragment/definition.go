@@ -45,6 +45,14 @@ func Define(path string, options ...DefinitionOption) *Definition {
 	return definition
 }
 
+func (d *Definition) Children() map[string]*Definition {
+	return d.children
+}
+
+func (d *Definition) Child(name string) *Definition {
+	return d.children[name]
+}
+
 func WithChild(name string, child *Definition) DefinitionOption {
 	return func(definition *Definition) {
 		// TODO error if overwriting?

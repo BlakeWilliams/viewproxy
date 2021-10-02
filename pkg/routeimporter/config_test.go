@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/blakewilliams/viewproxy"
-	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,8 +12,8 @@ func TestLoadRoutesError(t *testing.T) {
 	require.NoError(t, err)
 
 	entry := ConfigRouteEntry{
-		Url:            "/foo/bar",
-		LayoutTemplate: fragment.Define("/layout/:name"),
+		Url:  "/foo/bar",
+		Root: ConfigFragment{Path: "/layout/:name"},
 	}
 
 	err = LoadRoutes(server, []ConfigRouteEntry{entry})
