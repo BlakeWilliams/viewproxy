@@ -3,10 +3,12 @@ package viewproxy
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
@@ -25,20 +27,37 @@ func (rb *responseBuilder) SetLayout(result *multiplexer.Result) {
 	rb.body = result.Body
 }
 
-func (rb *responseBuilder) SetFragments(results []*multiplexer.Result) {
-	var contentHtml []byte
+func (rb *responseBuilder) SetFragments(route *Route, results []*multiplexer.Result) {
+	resultMap := map[string]*multiplexer.Result{}
 
-	for _, result := range results {
-		contentHtml = append(contentHtml, result.Body...)
+	for i, key := range route.FragmentOrder() {
+		resultMap[key] = results[i]
 	}
 
-	if len(rb.body) == 0 {
-		rb.body = contentHtml
-	} else {
-		outputHtml := bytes.Replace(rb.body, []byte("<view-proxy-content></view-proxy-content>"), contentHtml, 1)
+	buildInfo := route.RootFragment.BuildInfo()
+	rb.body = stitch(buildInfo, resultMap)
+}
 
-		rb.body = outputHtml
+func stitch(b fragment.BuildInfo, results map[string]*multiplexer.Result) []byte {
+	childContent := make(map[string][]byte)
+
+	for _, childBuild := range b.DependentBuilds {
+		childContent[childBuild.ReplacementID] = stitch(childBuild, results)
 	}
+
+	self := results[b.Key].Body
+
+	// handle edge fragments
+	if len(childContent) == 0 {
+		return self
+	}
+
+	for replacementKey, content := range childContent {
+		directive := []byte(fmt.Sprintf("<viewproxy-fragment id=\"%s\"/>", replacementKey))
+		self = bytes.Replace(self, directive, content, 1)
+	}
+
+	return self
 }
 
 func (rb *responseBuilder) SetDuration(duration int64) {
@@ -84,12 +103,12 @@ func withDefaultErrorHandler(next http.Handler) http.Handler {
 
 func withCombinedFragments(s *Server) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		route := RouteFromContext(r.Context())
 		results := multiplexer.ResultsFromContext(r.Context())
 
 		if results != nil && results.Error() == nil {
 			resBuilder := newResponseBuilder(*s, rw)
-			resBuilder.SetLayout(results.Results()[0])
-			resBuilder.SetFragments(results.Results()[1:])
+			resBuilder.SetFragments(route, results.Results())
 			elapsed := time.Since(startTimeFromContext(r.Context()))
 			resBuilder.SetDuration(elapsed.Milliseconds())
 			resBuilder.Write()

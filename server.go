@@ -147,12 +147,8 @@ func WithRouteMetadata(metadata map[string]string) GetOption {
 	}
 }
 
-func (s *Server) Get(path string, layout *fragment.Definition, content []*fragment.Definition, opts ...GetOption) error {
-	route := newRoute(path, map[string]string{}, layout, content)
-
-	for _, fragment := range content {
-		fragment.PreloadUrl(s.target)
-	}
+func (s *Server) Get(path string, root *fragment.Definition, opts ...GetOption) error {
+	route := newRoute(path, map[string]string{}, root)
 
 	for _, opt := range opts {
 		opt(route)

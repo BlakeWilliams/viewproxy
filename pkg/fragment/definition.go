@@ -18,6 +18,7 @@ type Definition struct {
 	Url              string
 	Metadata         map[string]string
 	IgnoreValidation bool
+	children         map[string]*Definition
 }
 
 func Define(path string, options ...DefinitionOption) *Definition {
@@ -26,6 +27,7 @@ func Define(path string, options ...DefinitionOption) *Definition {
 		Path:       path,
 		routeParts: strings.Split(safePath, "/"),
 		Metadata:   make(map[string]string),
+		children:   make(map[string]*Definition),
 	}
 
 	dynamicParts := make([]string, 0)
@@ -43,6 +45,13 @@ func Define(path string, options ...DefinitionOption) *Definition {
 	return definition
 }
 
+func WithChild(name string, child *Definition) DefinitionOption {
+	return func(definition *Definition) {
+		// TODO error if overwriting?
+		definition.children[name] = child
+	}
+}
+
 func WithoutValidation() DefinitionOption {
 	return func(definition *Definition) {
 		definition.IgnoreValidation = true
@@ -53,6 +62,53 @@ func WithMetadata(metadata map[string]string) DefinitionOption {
 	return func(definition *Definition) {
 		definition.Metadata = metadata
 	}
+}
+
+func (d *Definition) Mapping() map[string]*Definition {
+	mapping := make(map[string]*Definition)
+	mapping["root"] = d
+
+	for name, child := range d.children {
+		child.mapChild("root", name, mapping)
+	}
+
+	return mapping
+}
+
+func (d *Definition) mapChild(prefix string, name string, mapping map[string]*Definition) {
+	key := prefix + "." + name
+	mapping[key] = d
+
+	for name, child := range d.children {
+		child.mapChild(key, name, mapping)
+	}
+}
+
+type BuildInfo struct {
+	Key             string
+	ReplacementID   string
+	DependentBuilds []BuildInfo
+}
+
+func (d *Definition) BuildInfo() BuildInfo {
+	buildInfo := BuildInfo{Key: "root"}
+
+	for name, child := range d.children {
+		buildInfo.DependentBuilds = append(buildInfo.DependentBuilds, child.childBuildInfo("root", name))
+	}
+
+	return buildInfo
+}
+
+func (d *Definition) childBuildInfo(prefix string, name string) BuildInfo {
+	key := prefix + "." + name
+	buildInfo := BuildInfo{Key: key, ReplacementID: name}
+
+	for name, child := range d.children {
+		buildInfo.DependentBuilds = append(buildInfo.DependentBuilds, child.childBuildInfo(key, name))
+	}
+
+	return buildInfo
 }
 
 func (d *Definition) DynamicParts() []string {
@@ -101,25 +157,14 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 	}, nil
 }
 
-func (d *Definition) PreloadUrl(target string) {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(target, "/"), strings.TrimLeft(d.Path, "/")),
-	)
-
-	if err != nil {
-		// It should be okay to panic here, since this should only be called at boot time
-		panic(err)
-	}
-
-	d.Url = targetUrl.String()
-}
-
 type Request struct {
 	RequestURL *url.URL
 	Definition *Definition
+	name       string
 }
 
 var _ multiplexer.Requestable = &Request{}
 
+func (fr *Request) Name() string                { return fr.name }
 func (fr *Request) URL() string                 { return fr.RequestURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }

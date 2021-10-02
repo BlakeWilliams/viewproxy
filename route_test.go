@@ -25,7 +25,7 @@ func TestRoute_MatchParts(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, map[string]string{}, fragment.Define(""), fragment.Collection{})
+			route := newRoute(test.routePath, map[string]string{}, fragment.Define(""))
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.matchParts(providedUrlParts)
 
@@ -48,7 +48,7 @@ func TestRoute_ParametersFor(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(test.routePath, map[string]string{}, fragment.Define(""), fragment.Collection{})
+			route := newRoute(test.routePath, map[string]string{}, fragment.Define(""))
 			providedUrlParts := strings.Split(test.providedUrl, "/")
 			got := route.parametersFor(providedUrlParts)
 
@@ -62,64 +62,72 @@ func TestRoute_ParametersFor(t *testing.T) {
 func TestRoute_Validate(t *testing.T) {
 	testCases := map[string]struct {
 		routePath   string
-		layout      *fragment.Definition
-		fragments   fragment.Collection
+		root        *fragment.Definition
 		errorString string
 		valid       bool
 	}{
 		"static routes": {
 			routePath: "/foo",
-			layout:    fragment.Define("/foo/layout"),
-			fragments: fragment.Collection{fragment.Define("body")},
+			root: fragment.Define("/foo/layout", fragment.WithChild(
+				"body", fragment.Define("body"),
+			)),
 		},
 		"dynamic route matching": {
 			routePath: "/hello/:name",
-			layout:    fragment.Define("/_viewproxy/hello/:name/layout"),
-			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
+			root: fragment.Define("/_viewproxy/hello/:name/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:name/body"),
+			)),
 		},
 		"dynamic route matching with different order": {
 			routePath: "/:greeting/:name",
-			layout:    fragment.Define("/_viewproxy/:greeting/:name/layout"),
-			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/:greeting/body")},
+			root: fragment.Define("/_viewproxy/:greeting/:name/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:name/:greeting/body"),
+			)),
 		},
 		"dynamic route layout not matching": {
-			routePath:   "/hello/:name",
-			layout:      fragment.Define("/_viewproxy/hello/:login/layout"),
-			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
+			routePath: "/hello/:name",
+			root: fragment.Define("/_viewproxy/hello/:login/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:name/body"),
+			)),
 			errorString: "dynamic route /hello/:name has mismatched fragment route /_viewproxy/hello/:login/layout",
 		},
 		"dynamic route layout not matching without validation": {
 			routePath: "/hello/:name",
-			layout:    fragment.Define("/_viewproxy/hello/:login/layout", fragment.WithoutValidation()),
-			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
+			root: fragment.Define("/_viewproxy/hello/:login/layout", fragment.WithoutValidation(), fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:name/body"),
+			)),
 		},
 		"dynamic route body not matching": {
-			routePath:   "/hello/:name",
-			layout:      fragment.Define("/_viewproxy/hello/:name/layout"),
-			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:login/body")},
+			routePath: "/hello/:name",
+			root: fragment.Define("/_viewproxy/hello/:name/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:login/body"),
+			)),
 			errorString: "dynamic route /hello/:name has mismatched fragment route /_viewproxy/hello/:login/body",
 		},
 		"dynamic route body not matching without validation": {
 			routePath: "/hello/:name",
-			layout:    fragment.Define("/_viewproxy/hello/:name/layout"),
-			fragments: fragment.Collection{fragment.Define("/_viewproxy/hello/:login/body", fragment.WithoutValidation())},
+			root: fragment.Define("/_viewproxy/hello/:name/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:login/body", fragment.WithoutValidation()),
+			)),
 		},
 		"static route with dynamic layout": {
-			routePath:   "/foo",
-			layout:      fragment.Define("/_viewproxy/hello/:name/layout"),
-			fragments:   fragment.Collection{fragment.Define("body")},
+			routePath: "/foo",
+			root: fragment.Define("/_viewproxy/hello/:name/layout", fragment.WithChild(
+				"body", fragment.Define("body"),
+			)),
 			errorString: "static route /foo has mismatched fragment route /_viewproxy/hello/:name/layout",
 		},
 		"static route with dynamic body": {
-			routePath:   "/foo",
-			layout:      fragment.Define("/_viewproxy/foo/layout"),
-			fragments:   fragment.Collection{fragment.Define("/_viewproxy/hello/:name/body")},
+			routePath: "/foo",
+			root: fragment.Define("/_viewproxy/foo/layout", fragment.WithChild(
+				"body", fragment.Define("/_viewproxy/hello/:name/body"),
+			)),
 			errorString: "static route /foo has mismatched fragment route /_viewproxy/hello/:name/body",
 		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			route := newRoute(tc.routePath, map[string]string{}, tc.layout, tc.fragments)
+			route := newRoute(tc.routePath, map[string]string{}, tc.root)
 
 			err := route.Validate()
 
@@ -130,10 +138,4 @@ func TestRoute_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestLayout(t *testing.T) {
-	route := newRoute("/", map[string]string{}, fragment.Define("my_layout"), fragment.Collection{})
-
-	require.Equal(t, route.LayoutFragment.Path, "my_layout")
 }

@@ -31,21 +31,19 @@ func (rve *RouteValidationError) Error() string {
 }
 
 type Route struct {
-	Path             string
-	Parts            []string
-	dynamicParts     []string
-	LayoutFragment   *fragment.Definition
-	ContentFragments fragment.Collection
-	Metadata         map[string]string
+	Path         string
+	Parts        []string
+	dynamicParts []string
+	RootFragment *fragment.Definition
+	Metadata     map[string]string
 }
 
-func newRoute(path string, metadata map[string]string, layout *fragment.Definition, contentFragments fragment.Collection) *Route {
+func newRoute(path string, metadata map[string]string, root *fragment.Definition) *Route {
 	route := &Route{
-		Path:             path,
-		Parts:            strings.Split(path, "/"),
-		LayoutFragment:   layout,
-		ContentFragments: contentFragments,
-		Metadata:         metadata,
+		Path:         path,
+		Parts:        strings.Split(path, "/"),
+		Metadata:     metadata,
+		RootFragment: root,
 	}
 
 	dynamicParts := make([]string, 0)
@@ -122,12 +120,27 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) FragmentsToRequest() fragment.Collection {
-	fragments := make(fragment.Collection, len(r.ContentFragments)+1)
-	fragments[0] = r.LayoutFragment
+func (r *Route) FragmentOrder() []string {
+	mapping := r.RootFragment.Mapping()
+	keys := make([]string, 0, len(mapping))
 
-	for i, fragment := range r.ContentFragments {
-		fragments[i+1] = fragment
+	for key, _ := range mapping {
+		keys = append(keys, key)
 	}
+
+	sort.Strings(keys)
+
+	return keys
+}
+
+func (r *Route) FragmentsToRequest() []*fragment.Definition {
+	mapping := r.RootFragment.Mapping()
+	keys := r.FragmentOrder()
+
+	fragments := make([]*fragment.Definition, 0, len(keys))
+	for _, key := range keys {
+		fragments = append(fragments, mapping[key])
+	}
+
 	return fragments
 }
