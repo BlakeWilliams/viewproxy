@@ -83,7 +83,7 @@ func withCombinedFragments(s *Server) http.Handler {
 	})
 }
 
-func stitch(structure fragmentStitchStructure, results map[string]*multiplexer.Result) []byte {
+func stitch(structure stitchStructure, results map[string]*multiplexer.Result) []byte {
 	childContent := make(map[string][]byte)
 
 	for _, childBuild := range structure.DependentStructures {

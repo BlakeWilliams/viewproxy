@@ -8,6 +8,7 @@ import (
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
+type Children = map[string]*Definition
 type Collection = []*Definition
 type DefinitionOption = func(*Definition)
 
@@ -50,6 +51,14 @@ func (d *Definition) Children() map[string]*Definition {
 
 func (d *Definition) Child(name string) *Definition {
 	return d.children[name]
+}
+
+func WithChildren(children Children) DefinitionOption {
+	return func(definition *Definition) {
+		for name, child := range children {
+			definition.children[name] = child
+		}
+	}
 }
 
 func WithChild(name string, child *Definition) DefinitionOption {
