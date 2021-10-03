@@ -142,7 +142,7 @@ func (r *Route) memoizeFragments() {
 
 	keys := make([]string, 0, len(mapping))
 
-	for key, _ := range mapping {
+	for key := range mapping {
 		keys = append(keys, key)
 	}
 
