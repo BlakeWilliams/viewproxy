@@ -139,3 +139,21 @@ func TestRoute_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestFragmentMapping(t *testing.T) {
+	header := fragment.Define("header")
+	footer := fragment.Define("footer")
+	body := fragment.Define("body", fragment.WithChild("header", header), fragment.WithChild("footer", footer))
+
+	root := fragment.Define(
+		"/hello/:name",
+		fragment.WithChild("body", body),
+	)
+
+	mapping := fragmentMapping(root)
+
+	require.Equal(t, footer, mapping["root.body.footer"])
+	require.Equal(t, header, mapping["root.body.header"])
+	require.Equal(t, body, mapping["root.body"])
+	require.Equal(t, root, mapping["root"])
+}

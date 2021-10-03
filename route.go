@@ -138,7 +138,7 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 }
 
 func (r *Route) memoizeFragments() {
-	mapping := r.RootFragment.Mapping()
+	mapping := fragmentMapping(r.RootFragment)
 
 	keys := make([]string, 0, len(mapping))
 
@@ -156,4 +156,29 @@ func (r *Route) memoizeFragments() {
 	}
 
 	r.fragmentsToRequest = fragments
+}
+
+// fragmentMapping returns a map of fragment keys and their fragments.
+//
+// Fragment keys consist of each parent's name separated by a `.`. The top-level
+// fragment is always named root and child fragments are named after their key
+// in the parent's `Children` map. e.g. `root.layout.header`
+func fragmentMapping(f *fragment.Definition) map[string]*fragment.Definition {
+	mapping := make(map[string]*fragment.Definition)
+	mapping["root"] = f
+
+	for name, child := range f.Children() {
+		mapChildFragment("root", name, child, mapping)
+	}
+
+	return mapping
+}
+
+func mapChildFragment(prefix string, name string, f *fragment.Definition, mapping map[string]*fragment.Definition) {
+	key := prefix + "." + name
+	mapping[key] = f
+
+	for name, child := range f.Children() {
+		mapChildFragment(key, name, child, mapping)
+	}
 }

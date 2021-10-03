@@ -3,16 +3,28 @@ package viewproxy
 import "github.com/blakewilliams/viewproxy/pkg/fragment"
 
 type stitchStructure struct {
-	Key                 string
-	ReplacementID       string
-	DependentStructures []stitchStructure
+	key                 string
+	replacementID       string
+	dependentStructures []stitchStructure
+}
+
+func (s *stitchStructure) Key() string {
+	return s.key
+}
+
+func (s *stitchStructure) ReplacementID() string {
+	return s.replacementID
+}
+
+func (s *stitchStructure) DependentStructures() []stitchStructure {
+	return s.dependentStructures
 }
 
 func stitchStructureFor(d *fragment.Definition) stitchStructure {
-	structure := stitchStructure{Key: "root"}
+	structure := stitchStructure{key: "root"}
 
 	for name, child := range d.Children() {
-		structure.DependentStructures = append(structure.DependentStructures, childStitchStructure("root", name, child))
+		structure.dependentStructures = append(structure.dependentStructures, childStitchStructure("root", name, child))
 	}
 
 	return structure
@@ -20,10 +32,10 @@ func stitchStructureFor(d *fragment.Definition) stitchStructure {
 
 func childStitchStructure(prefix string, name string, d *fragment.Definition) stitchStructure {
 	key := prefix + "." + name
-	buildInfo := stitchStructure{Key: key, ReplacementID: name}
+	buildInfo := stitchStructure{key: key, replacementID: name}
 
 	for name, child := range d.Children() {
-		buildInfo.DependentStructures = append(buildInfo.DependentStructures, childStitchStructure(key, name, child))
+		buildInfo.dependentStructures = append(buildInfo.dependentStructures, childStitchStructure(key, name, child))
 	}
 
 	return buildInfo

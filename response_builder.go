@@ -86,11 +86,11 @@ func withCombinedFragments(s *Server) http.Handler {
 func stitch(structure stitchStructure, results map[string]*multiplexer.Result) []byte {
 	childContent := make(map[string][]byte)
 
-	for _, childBuild := range structure.DependentStructures {
-		childContent[childBuild.ReplacementID] = stitch(childBuild, results)
+	for _, childBuild := range structure.DependentStructures() {
+		childContent[childBuild.ReplacementID()] = stitch(childBuild, results)
 	}
 
-	self := results[structure.Key].Body
+	self := results[structure.Key()].Body
 
 	// handle edge fragments
 	if len(childContent) == 0 {

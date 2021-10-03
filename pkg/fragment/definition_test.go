@@ -21,24 +21,6 @@ func TestFragment_IntoRequestable(t *testing.T) {
 	require.Equal(t, "http://fake.net/hello/fox.mulder", requestable.URL())
 }
 
-func TestFragment_Mapping(t *testing.T) {
-	header := Define("header")
-	footer := Define("footer")
-	body := Define("body", WithChild("header", header), WithChild("footer", footer))
-
-	root := Define(
-		"/hello/:name",
-		WithChild("body", body),
-	)
-
-	mapping := root.Mapping()
-
-	require.Equal(t, footer, mapping["root.body.footer"])
-	require.Equal(t, header, mapping["root.body.header"])
-	require.Equal(t, body, mapping["root.body"])
-	require.Equal(t, root, mapping["root"])
-}
-
 func TestFragment_IntoRequestable_MissingDynamicPart(t *testing.T) {
 	definition := Define("/hello/:name")
 	_, err := definition.Requestable(
