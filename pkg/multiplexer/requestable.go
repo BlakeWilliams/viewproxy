@@ -7,7 +7,6 @@ type RequestableContextKey struct{}
 type Requestable interface {
 	URL() string
 	Metadata() map[string]string
-	TimingLabel() string
 }
 
 func RequestableFromContext(ctx context.Context) Requestable {

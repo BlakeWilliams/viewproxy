@@ -21,7 +21,6 @@ type fakeRequestable struct {
 
 func (ff *fakeRequestable) URL() string                 { return ff.url }
 func (ff *fakeRequestable) Metadata() map[string]string { return make(map[string]string) }
-func (ff *fakeRequestable) TimingLabel() string         { return "" }
 func newFakeRequestable(url string) *fakeRequestable    { return &fakeRequestable{url: url} }
 
 var _ Requestable = &fakeRequestable{}
