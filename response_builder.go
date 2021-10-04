@@ -106,7 +106,7 @@ func stitch(structure stitchStructure, results map[string]*multiplexer.Result) [
 }
 
 func mapResultsToFragmentKey(route *Route, results []*multiplexer.Result) map[string]*multiplexer.Result {
-	resultMap := map[string]*multiplexer.Result{}
+	resultMap := make(map[string]*multiplexer.Result, len(route.FragmentOrder()))
 
 	for i, key := range route.FragmentOrder() {
 		resultMap[key] = results[i]
