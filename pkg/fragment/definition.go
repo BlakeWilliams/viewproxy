@@ -80,26 +80,6 @@ func WithMetadata(metadata map[string]string) DefinitionOption {
 	}
 }
 
-func (d *Definition) Mapping() map[string]*Definition {
-	mapping := make(map[string]*Definition)
-	mapping["root"] = d
-
-	for name, child := range d.children {
-		child.mapChild("root", name, mapping)
-	}
-
-	return mapping
-}
-
-func (d *Definition) mapChild(prefix string, name string, mapping map[string]*Definition) {
-	key := prefix + "." + name
-	mapping[key] = d
-
-	for name, child := range d.children {
-		child.mapChild(key, name, mapping)
-	}
-}
-
 func (d *Definition) DynamicParts() []string {
 	return d.dynamicParts
 }
