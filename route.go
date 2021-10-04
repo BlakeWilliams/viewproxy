@@ -37,7 +37,7 @@ type Route struct {
 	RootFragment *fragment.Definition
 	Metadata     map[string]string
 	// memoized version of the mapping used to stitch fragments back together
-	structure stitchStructure
+	structure *stitchStructure
 	// memoized version of fragments to request
 	fragmentsToRequest []*fragment.Definition
 	// memoized version mapping fragment names to multiplexer.Result order

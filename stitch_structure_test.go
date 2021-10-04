@@ -18,8 +18,8 @@ func TestStitchStructure(t *testing.T) {
 
 	structure := stitchStructureFor(rootFragment)
 
-	var headerStructure stitchStructure
-	var bodyStructure stitchStructure
+	var headerStructure *stitchStructure
+	var bodyStructure *stitchStructure
 
 	// Maps are not ordered, so we need to find the correct fragment order here
 	if structure.DependentStructures()[0].Key() == "root.header" {
