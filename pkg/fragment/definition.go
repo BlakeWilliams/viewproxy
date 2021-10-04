@@ -121,11 +121,9 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 type Request struct {
 	RequestURL *url.URL
 	Definition *Definition
-	name       string
 }
 
 var _ multiplexer.Requestable = &Request{}
 
-func (fr *Request) Name() string                { return fr.name }
 func (fr *Request) URL() string                 { return fr.RequestURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }
