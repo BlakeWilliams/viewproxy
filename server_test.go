@@ -454,6 +454,37 @@ func TestWithPassThrough_Error(t *testing.T) {
 	require.Contains(t, err.Error(), "WithPassThrough error")
 }
 
+func BenchmarkServer(b *testing.B) {
+	viewProxyServer := newServer(b, targetServer.URL)
+	viewProxyServer.Addr = "localhost:9997"
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	viewProxyServer.AroundResponse = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Del("etag")
+			next.ServeHTTP(rw, r)
+		})
+	}
+
+	root := fragment.Define(
+		"/layouts/test_layout", fragment.WithoutValidation(), fragment.WithChildren(fragment.Children{
+			"header": fragment.Define("/header/:name"),
+			"body":   fragment.Define("/body/:name"),
+			"name":   fragment.Define("/footer/:name"),
+		}),
+	)
+	viewProxyServer.Get("/hello/:name", root)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		r := httptest.NewRequest("GET", "/hello/world", nil)
+		w := httptest.NewRecorder()
+
+		viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	}
+}
+
 func startLegacyTargetServer() *httptest.Server {
 	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
@@ -522,9 +553,9 @@ func startTargetServer() *httptest.Server {
 	return testServer
 }
 
-func newServer(t *testing.T, target string, opts ...ServerOption) *Server {
+func newServer(tb testing.TB, target string, opts ...ServerOption) *Server {
 	server, err := NewServer(target, opts...)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return server
 }
