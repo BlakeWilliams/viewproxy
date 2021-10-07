@@ -13,7 +13,7 @@ type ConfigFragment struct {
 }
 
 type ConfigRouteEntry struct {
-	Path              string            `json:"url"`
+	Path             string            `json:"url"`
 	Root             ConfigFragment    `json:"root"`
 	Metadata         map[string]string `json:"metadata"`
 	IgnoreValidation bool
@@ -24,7 +24,7 @@ func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error
 		root := createFragment(routeEntry.Root)
 
 		err := server.Get(
-			routeEntry.Url,
+			routeEntry.Path,
 			root,
 			viewproxy.WithRouteMetadata(routeEntry.Metadata),
 		)

@@ -12,7 +12,7 @@ func TestLoadRoutesError(t *testing.T) {
 	require.NoError(t, err)
 
 	entry := ConfigRouteEntry{
-		Url:  "/foo/bar",
+		Path: "/foo/bar",
 		Root: ConfigFragment{Path: "/layout/:name"},
 	}
 
