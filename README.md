@@ -35,7 +35,7 @@ server.ListenAndServe()
 ```
 
 Each child fragment is replaced in the parent fragment via a special tag,
-`<viewproxy-fragment>`. For example, the `header` fragment will be replaced in the
+`<viewproxy-fragment>`. For example, the `header` fragment will be inserted into the
 `my_layout` fragment by looking for the following content: `<viewproxy-fragment id="header"/>`.
 
 ## Demo Usage
