@@ -6,6 +6,7 @@ type RequestableContextKey struct{}
 
 type Requestable interface {
 	URL() string
+	TemplateURL() string
 	Metadata() map[string]string
 }
 

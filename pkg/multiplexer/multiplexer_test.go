@@ -20,6 +20,7 @@ type fakeRequestable struct {
 }
 
 func (ff *fakeRequestable) URL() string                 { return ff.url }
+func (ff *fakeRequestable) TemplateURL() string         { return ff.url }
 func (ff *fakeRequestable) Metadata() map[string]string { return make(map[string]string) }
 func newFakeRequestable(url string) *fakeRequestable    { return &fakeRequestable{url: url} }
 

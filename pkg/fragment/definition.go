@@ -95,9 +95,13 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 
 	request.RawQuery = query.Encode()
 
+	templateURL := *target
+	templateURL.Path = strings.Join(d.routeParts, "/")
+
 	return &Request{
-		RequestURL: &request,
-		Definition: d,
+		RequestURL:  &request,
+		Definition:  d,
+		templateURL: &templateURL,
 	}, nil
 }
 
@@ -115,11 +119,13 @@ func (d *Definition) PreloadUrl(target string) {
 }
 
 type Request struct {
-	RequestURL *url.URL
-	Definition *Definition
+	RequestURL  *url.URL
+	Definition  *Definition
+	templateURL *url.URL
 }
 
 var _ multiplexer.Requestable = &Request{}
 
 func (fr *Request) URL() string                 { return fr.RequestURL.String() }
+func (fr *Request) TemplateURL() string         { return fr.templateURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }

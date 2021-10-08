@@ -19,6 +19,7 @@ func TestFragment_IntoRequestable(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "http://fake.net/hello/fox.mulder", requestable.URL())
+	require.Equal(t, "http://fake.net/hello/:name", requestable.TemplateURL())
 }
 
 func TestFragment_IntoRequestable_MissingDynamicPart(t *testing.T) {
@@ -41,4 +42,5 @@ func TestFragment_IntoRequestable_HandlesURLEncodings(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, "http://fake.net/hello/mulder%2fscully", requestable.URL())
+	require.Equal(t, "http://fake.net/hello/:name", requestable.TemplateURL())
 }
