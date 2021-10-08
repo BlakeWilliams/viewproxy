@@ -68,11 +68,6 @@ func newRoute(path string, metadata map[string]string, root *fragment.Definition
 
 // Validates if the route and fragments have compatible dynamic route parts.
 func (r *Route) Validate() error {
-	// Legacy routes skip validation
-	if r.Metadata["legacy"] == "true" {
-		return nil
-	}
-
 	for _, fragment := range r.FragmentsToRequest() {
 		if !fragment.IgnoreValidation && !compareStringSlice(r.dynamicParts, fragment.DynamicParts()) {
 			return &RouteValidationError{Route: r, Fragment: fragment}

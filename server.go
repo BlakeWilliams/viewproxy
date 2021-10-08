@@ -267,13 +267,6 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, route *Ro
 	for _, f := range route.FragmentsToRequest() {
 		query := url.Values{}
 
-		// support legacy behavior of passing query parameters
-		if f.Metadata["legacy"] == "true" {
-			for name, value := range parameters {
-				query.Add(name, value)
-			}
-		}
-
 		for name, values := range r.URL.Query() {
 			if query.Get(name) == "" {
 				for _, value := range values {
