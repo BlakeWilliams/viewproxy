@@ -10,6 +10,7 @@ type Filter interface {
 	IsAllowed(string) bool
 	FilterURL(url *url.URL) *url.URL
 	FilterURLString(url string) string
+	FilterURLStringThrough(source string, target string) string
 	FilterQueryParams(params url.Values) url.Values
 	FilterURLError(errURL string, err *url.Error) *url.Error
 }
@@ -77,10 +78,24 @@ func (l *secretFilter) FilterQueryParams(query url.Values) url.Values {
 	return filteredQueryParams
 }
 
+func (l *secretFilter) FilterURLStringThrough(source string, target string) string {
+	// Copy query params from source to target
+	parsedSource, parseErr := url.Parse(source)
+	if parseErr == nil {
+		parsedTarget, parseErr := url.Parse(target)
+		if parseErr == nil {
+			parsedTarget.RawQuery = parsedSource.RawQuery
+			target = parsedTarget.String()
+		}
+	}
+
+	return l.FilterURLString(target)
+}
+
 func (l *secretFilter) FilterURLError(errURL string, err *url.Error) *url.Error {
 	return &url.Error{
 		Op:  err.Op,
-		URL: l.FilterURLString(errURL),
+		URL: l.FilterURLStringThrough(err.URL, errURL),
 		Err: err.Err,
 	}
 }

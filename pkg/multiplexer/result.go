@@ -18,7 +18,7 @@ type Results interface {
 }
 
 func newResultError(errURL string, req *Request, res *Result) *ResultError {
-	safeUrl := req.SecretFilter.FilterURLString(errURL)
+	safeUrl := req.SecretFilter.FilterURLStringThrough(res.Url, errURL)
 	msg := fmt.Sprintf("status: %d url: %s", res.StatusCode, safeUrl)
 
 	return &ResultError{Result: res, msg: msg}

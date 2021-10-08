@@ -98,7 +98,7 @@ func TestResultErrorMessagesFilterUrls(t *testing.T) {
 
 	r := newRequest()
 	req := newFakeRequestable("http://localhost:9990/wowomg?foo=bar")
-	req.templateURL = "http://localhost:9990/:name?foo=bar"
+	req.templateURL = "http://localhost:9990/:name"
 	r.WithRequestable(req)
 	r.Timeout = defaultTimeout
 	_, err := r.Do(context.TODO())
