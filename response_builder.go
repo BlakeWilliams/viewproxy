@@ -98,7 +98,7 @@ func stitch(structure *stitchStructure, results map[string]*multiplexer.Result) 
 	}
 
 	for replacementKey, content := range childContent {
-		directive := []byte(fmt.Sprintf("<viewproxy-fragment id=\"%s\"/>", replacementKey))
+		directive := []byte(fmt.Sprintf("<viewproxy-fragment id=\"%s\"></viewproxy-fragment>", replacementKey))
 		self = bytes.Replace(self, directive, content, 1)
 	}
 

@@ -278,7 +278,7 @@ func TestSupportsGzip(t *testing.T) {
 		gzWriter := gzip.NewWriter(&b)
 
 		if r.URL.Path == "/layout" {
-			gzWriter.Write([]byte(`<body><viewproxy-fragment id="fragment"/></body>`))
+			gzWriter.Write([]byte(`<body><viewproxy-fragment id="fragment"></viewproxy-fragment></body>`))
 		} else if r.URL.Path == "/fragment" {
 			gzWriter.Write([]byte("wow gzipped!"))
 		} else {
@@ -494,7 +494,7 @@ func startLegacyTargetServer() *httptest.Server {
 
 		if r.URL.Path == "/layouts/test_layout" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><viewproxy-fragment id="header"/><viewproxy-fragment id="body"/><viewproxy-fragment id="footer"/></html>`))
+			w.Write([]byte(`<html><viewproxy-fragment id="header"></viewproxy-fragment><viewproxy-fragment id="body"></viewproxy-fragment><viewproxy-fragment id="footer"></viewproxy-fragment></html>`))
 		} else if r.URL.Path == "/header" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<body>"))
@@ -533,7 +533,7 @@ func startTargetServer() *httptest.Server {
 
 		if r.URL.Path == "/layouts/test_layout" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`<html><viewproxy-fragment id="header"/><viewproxy-fragment id="body"/><viewproxy-fragment id="footer"/></html>`))
+			w.Write([]byte(`<html><viewproxy-fragment id="header"></viewproxy-fragment><viewproxy-fragment id="body"></viewproxy-fragment><viewproxy-fragment id="footer"></viewproxy-fragment></html>`))
 		} else if strings.HasPrefix(r.URL.Path, "/header/") {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<body>"))
