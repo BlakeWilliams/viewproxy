@@ -113,9 +113,9 @@ func TestSecretFilter_FilterUrlError(t *testing.T) {
 	}
 
 	filter := New()
-	filtered := filter.FilterURLError(original)
+	filtered := filter.FilterURLError("http://localhost/:foo", original)
 
-	require.Equal(t, "http://localhost/foo?a=FILTERED", filtered.URL)
+	require.Equal(t, "http://localhost/:foo", filtered.URL)
 	require.Equal(t, "Get", filtered.Op)
 	require.Equal(t, io.EOF, filtered.Err)
 }

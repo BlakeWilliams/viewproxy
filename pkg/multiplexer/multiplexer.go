@@ -76,7 +76,7 @@ func (r *Request) WithRequestable(requestable Requestable) {
 
 func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
 	res, err := r.fetchUrl(ctx, method, url, r.Header, body)
-	return res, r.filterError(err)
+	return res, r.filterError(url, err)
 }
 
 func (r *Request) Do(ctx context.Context) ([]*Result, error) {
@@ -117,7 +117,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 			result, err := r.fetchUrl(ctx, "GET", requestable.URL(), headersForRequest, nil)
 
 			if err != nil {
-				errCh <- err
+				errCh <- r.filterError(requestable.TemplateURL(), err)
 			}
 
 			results[i] = result
@@ -134,7 +134,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	select {
 	case err := <-errCh:
 		cancel()
-		return make([]*Result, 0), r.filterError(err)
+		return make([]*Result, 0), err
 	case <-done:
 		return results, nil
 	case <-ctx.Done():
@@ -222,10 +222,10 @@ func (r *Request) headersWithHmac(url string) http.Header {
 	return newHeaders
 }
 
-func (r *Request) filterError(err error) error {
+func (r *Request) filterError(errURL string, err error) error {
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
-		return r.SecretFilter.FilterURLError(urlErr)
+		return r.SecretFilter.FilterURLError(errURL, urlErr)
 	}
 
 	return err
