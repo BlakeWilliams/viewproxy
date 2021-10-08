@@ -19,7 +19,7 @@ import (
 
 var jsonConfig = []byte(`[
 	{
-		"url": "/users/new",
+		"path": "/users/new",
 		"metadata": {
 			"controller": "sessions"
 		},

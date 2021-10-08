@@ -13,7 +13,7 @@ type ConfigFragment struct {
 }
 
 type ConfigRouteEntry struct {
-	Path             string            `json:"url"`
+	Path             string
 	Root             ConfigFragment    `json:"root"`
 	Metadata         map[string]string `json:"metadata"`
 	IgnoreValidation bool
