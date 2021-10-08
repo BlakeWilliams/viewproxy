@@ -19,18 +19,18 @@ import (
 
 var jsonConfig = []byte(`[
 	{
-		"url": "/users/new",
+		"path": "/users/new",
 		"metadata": {
 			"controller": "sessions"
 		},
-		"layout": {
-			"path": "/_viewproxy/users/new/layout"
-		},
-		"fragments": [
-			{
-				"path": "/_viewproxy/users/new/content"
+		"root": {
+			"path": "/_viewproxy/users/new/layout",
+			"children": {
+				"content": {
+					"path": "/_viewproxy/users/new/content"
+				}
 			}
-		]
+		}
 	}
 ]`)
 
@@ -133,7 +133,8 @@ func requireJsonConfigRoutesLoaded(t *testing.T, routes []viewproxy.Route) {
 
 	require.Equal(t, "/users/new", route.Path)
 	require.Equal(t, "sessions", route.Metadata["controller"])
-	require.Equal(t, "/_viewproxy/users/new/layout", route.LayoutFragment.Path)
-	require.Len(t, route.ContentFragments, 1)
-	require.Equal(t, "/_viewproxy/users/new/content", route.ContentFragments[0].Path)
+	require.Len(t, route.FragmentsToRequest(), 2)
+
+	require.Contains(t, "/_viewproxy/users/new/layout", route.RootFragment.Path)
+	require.Contains(t, "/_viewproxy/users/new/content", route.RootFragment.Child("content").Path)
 }

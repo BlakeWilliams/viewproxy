@@ -29,12 +29,12 @@ func main() {
 
 	server.Get(
 		"/hello/:name",
-		fragment.Define("my_layout"),
-		fragment.Collection{
-			fragment.Define("header", fragment.WithMetadata(map[string]string{"title": "Hello"})),
-			fragment.Define("hello"),
-			fragment.Define("footer"),
-		},
+		fragment.Define("/layout/:name", fragment.WithChildren(fragment.Children{
+			"body": fragment.Define("/body/:name", fragment.WithChildren(fragment.Children{
+				"header":  fragment.Define("/header/:name", fragment.WithMetadata(map[string]string{"title": "Hello"})),
+				"message": fragment.Define("/message/:name"),
+			})),
+		})),
 	)
 
 	server.AroundResponse = func(h http.Handler) http.Handler {
@@ -90,5 +90,5 @@ func getTarget() string {
 		return value
 	}
 
-	return "http://localhost:3000/_view_fragments"
+	return "http://localhost:3000/"
 }

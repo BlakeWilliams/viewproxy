@@ -8,6 +8,7 @@ import (
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 )
 
+type Children = map[string]*Definition
 type Collection = []*Definition
 type DefinitionOption = func(*Definition)
 
@@ -15,9 +16,9 @@ type Definition struct {
 	Path             string
 	routeParts       []string
 	dynamicParts     []string
-	Url              string
 	Metadata         map[string]string
 	IgnoreValidation bool
+	children         map[string]*Definition
 }
 
 func Define(path string, options ...DefinitionOption) *Definition {
@@ -26,6 +27,7 @@ func Define(path string, options ...DefinitionOption) *Definition {
 		Path:       path,
 		routeParts: strings.Split(safePath, "/"),
 		Metadata:   make(map[string]string),
+		children:   make(map[string]*Definition),
 	}
 
 	dynamicParts := make([]string, 0)
@@ -43,6 +45,29 @@ func Define(path string, options ...DefinitionOption) *Definition {
 	return definition
 }
 
+func (d *Definition) Children() map[string]*Definition {
+	return d.children
+}
+
+func (d *Definition) Child(name string) *Definition {
+	return d.children[name]
+}
+
+func WithChildren(children Children) DefinitionOption {
+	return func(definition *Definition) {
+		for name, child := range children {
+			definition.children[name] = child
+		}
+	}
+}
+
+func WithChild(name string, child *Definition) DefinitionOption {
+	return func(definition *Definition) {
+		// TODO error if overwriting?
+		definition.children[name] = child
+	}
+}
+
 func WithoutValidation() DefinitionOption {
 	return func(definition *Definition) {
 		definition.IgnoreValidation = true
@@ -57,14 +82,6 @@ func WithMetadata(metadata map[string]string) DefinitionOption {
 
 func (d *Definition) DynamicParts() []string {
 	return d.dynamicParts
-}
-
-func (d *Definition) UrlWithParams(parameters url.Values) *url.URL {
-	// This is already parsed before constructing the url in server.go, so we ignore errors
-	targetUrl, _ := url.Parse(d.Url)
-	targetUrl.RawQuery = parameters.Encode()
-
-	return targetUrl
 }
 
 func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, query url.Values) (*Request, error) {
@@ -99,19 +116,6 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 		RequestURL: &request,
 		Definition: d,
 	}, nil
-}
-
-func (d *Definition) PreloadUrl(target string) {
-	targetUrl, err := url.Parse(
-		fmt.Sprintf("%s/%s", strings.TrimRight(target, "/"), strings.TrimLeft(d.Path, "/")),
-	)
-
-	if err != nil {
-		// It should be okay to panic here, since this should only be called at boot time
-		panic(err)
-	}
-
-	d.Url = targetUrl.String()
 }
 
 type Request struct {

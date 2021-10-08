@@ -31,21 +31,25 @@ func (rve *RouteValidationError) Error() string {
 }
 
 type Route struct {
-	Path             string
-	Parts            []string
-	dynamicParts     []string
-	LayoutFragment   *fragment.Definition
-	ContentFragments fragment.Collection
-	Metadata         map[string]string
+	Path         string
+	Parts        []string
+	dynamicParts []string
+	RootFragment *fragment.Definition
+	Metadata     map[string]string
+	// memoized version of the mapping used to stitch fragments back together
+	structure *stitchStructure
+	// memoized version of fragments to request
+	fragmentsToRequest []*fragment.Definition
+	// memoized version mapping fragment names to multiplexer.Result order
+	fragmentOrder []string
 }
 
-func newRoute(path string, metadata map[string]string, layout *fragment.Definition, contentFragments fragment.Collection) *Route {
+func newRoute(path string, metadata map[string]string, root *fragment.Definition) *Route {
 	route := &Route{
-		Path:             path,
-		Parts:            strings.Split(path, "/"),
-		LayoutFragment:   layout,
-		ContentFragments: contentFragments,
-		Metadata:         metadata,
+		Path:         path,
+		Parts:        strings.Split(path, "/"),
+		Metadata:     metadata,
+		RootFragment: root,
 	}
 
 	dynamicParts := make([]string, 0)
@@ -55,6 +59,9 @@ func newRoute(path string, metadata map[string]string, layout *fragment.Definiti
 		}
 	}
 	route.dynamicParts = dynamicParts
+	route.structure = stitchStructureFor(root)
+
+	route.memoizeFragments()
 
 	return route
 }
@@ -73,6 +80,14 @@ func (r *Route) Validate() error {
 	}
 
 	return nil
+}
+
+func (r *Route) FragmentOrder() []string {
+	return r.fragmentOrder
+}
+
+func (r *Route) FragmentsToRequest() []*fragment.Definition {
+	return r.fragmentsToRequest
 }
 
 func compareStringSlice(first []string, other []string) bool {
@@ -122,12 +137,48 @@ func (r *Route) parametersFor(pathParts []string) map[string]string {
 	return parameters
 }
 
-func (r *Route) FragmentsToRequest() fragment.Collection {
-	fragments := make(fragment.Collection, len(r.ContentFragments)+1)
-	fragments[0] = r.LayoutFragment
+func (r *Route) memoizeFragments() {
+	mapping := fragmentMapping(r.RootFragment)
 
-	for i, fragment := range r.ContentFragments {
-		fragments[i+1] = fragment
+	keys := make([]string, 0, len(mapping))
+
+	for key := range mapping {
+		keys = append(keys, key)
 	}
-	return fragments
+
+	sort.Strings(keys)
+
+	r.fragmentOrder = keys
+
+	fragments := make([]*fragment.Definition, 0, len(keys))
+	for _, key := range keys {
+		fragments = append(fragments, mapping[key])
+	}
+
+	r.fragmentsToRequest = fragments
+}
+
+// fragmentMapping returns a map of fragment keys and their fragments.
+//
+// Fragment keys consist of each parent's name separated by a `.`. The top-level
+// fragment is always named root and child fragments are named after their key
+// in the parent's `Children` map. e.g. `root.layout.header`
+func fragmentMapping(f *fragment.Definition) map[string]*fragment.Definition {
+	mapping := make(map[string]*fragment.Definition)
+	mapping["root"] = f
+
+	for name, child := range f.Children() {
+		mapChildFragment("root", name, child, mapping)
+	}
+
+	return mapping
+}
+
+func mapChildFragment(prefix string, name string, f *fragment.Definition, mapping map[string]*fragment.Definition) {
+	key := prefix + "." + name
+	mapping[key] = f
+
+	for name, child := range f.Children() {
+		mapChildFragment(key, name, child, mapping)
+	}
 }
