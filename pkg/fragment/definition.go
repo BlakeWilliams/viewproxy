@@ -101,7 +101,7 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 		}
 	}
 
-	request, err := buildURL(target, path.String(), query.Encode())
+	requestURL, err := buildURL(target, path.String(), query.Encode())
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 	}
 
 	return &Request{
-		RequestURL:  request,
+		RequestURL:  requestURL,
 		Definition:  d,
 		templateURL: templateURL,
 	}, nil
