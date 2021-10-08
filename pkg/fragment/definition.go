@@ -85,8 +85,6 @@ func (d *Definition) DynamicParts() []string {
 }
 
 func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, query url.Values) (*Request, error) {
-	request := *target // clone the url
-
 	var path strings.Builder
 
 	for _, part := range d.routeParts {
@@ -103,27 +101,45 @@ func (d *Definition) Requestable(target *url.URL, pathParams map[string]string, 
 		}
 	}
 
-	unescapedPath, err := url.PathUnescape(path.String())
+	requestURL, err := buildURL(target, path.String(), query.Encode())
 	if err != nil {
-		return nil, fmt.Errorf("could not encode url: %w", err)
+		return nil, err
 	}
-	request.Path = unescapedPath    // Set unescaped path which treats %2f as a /
-	request.RawPath = path.String() // Set RawPath which lets go correlate %2f to / in the Path, and escape correctly when calling String()
 
-	request.RawQuery = query.Encode()
+	templateURL, err := buildURL(target, strings.Join(d.routeParts, "/"), "")
+	if err != nil {
+		return nil, err
+	}
 
 	return &Request{
-		RequestURL: &request,
-		Definition: d,
+		RequestURL:  requestURL,
+		Definition:  d,
+		templateURL: templateURL,
 	}, nil
 }
 
+func buildURL(base *url.URL, path string, query string) (*url.URL, error) {
+	unescapedPath, err := url.PathUnescape(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not encode url: %w", err)
+	}
+
+	u := *base // clone the url
+	u.RawQuery = query
+	u.Path = unescapedPath // Set unescaped path which treats %2f as a /
+	u.RawPath = path       // Set RawPath which lets go correlate %2f to / in the Path, and escape correctly when calling String()
+
+	return &u, nil
+}
+
 type Request struct {
-	RequestURL *url.URL
-	Definition *Definition
+	RequestURL  *url.URL
+	Definition  *Definition
+	templateURL *url.URL
 }
 
 var _ multiplexer.Requestable = &Request{}
 
 func (fr *Request) URL() string                 { return fr.RequestURL.String() }
+func (fr *Request) TemplateURL() string         { return fr.templateURL.String() }
 func (fr *Request) Metadata() map[string]string { return fr.Definition.Metadata }
