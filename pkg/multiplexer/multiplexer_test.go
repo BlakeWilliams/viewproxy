@@ -16,13 +16,16 @@ import (
 var defaultTimeout = time.Duration(5) * time.Second
 
 type fakeRequestable struct {
-	url string
+	templateURL string
+	url         string
 }
 
 func (ff *fakeRequestable) URL() string                 { return ff.url }
-func (ff *fakeRequestable) TemplateURL() string         { return ff.url }
+func (ff *fakeRequestable) TemplateURL() string         { return ff.templateURL }
 func (ff *fakeRequestable) Metadata() map[string]string { return make(map[string]string) }
-func newFakeRequestable(url string) *fakeRequestable    { return &fakeRequestable{url: url} }
+func newFakeRequestable(url string) *fakeRequestable {
+	return &fakeRequestable{url: url, templateURL: url}
+}
 
 var _ Requestable = &fakeRequestable{}
 
@@ -109,12 +112,14 @@ func TestRequestErrorMessagesFilterUrls(t *testing.T) {
 	server := startServer(t)
 
 	r := newRequest()
-	r.WithRequestable(newFakeRequestable("http://localhost:9990/wowomg?fragment=bad_gateway&foo=bar"))
+	req := newFakeRequestable("http://localhost:9990/wowomg?fragment=bad_gateway&foo=bar")
+	req.templateURL = "http://localhost:9990/:name?fragment=bad_gateway&foo=bar"
+	r.WithRequestable(req)
 	r.Timeout = defaultTimeout
 	_, err := r.Do(context.TODO())
 
 	require.Error(t, err)
-	require.Equal(t, "Get \"http://localhost:9990/wowomg?foo=FILTERED&fragment=FILTERED\": EOF", err.Error())
+	require.Equal(t, "Get \"http://localhost:9990/:name?foo=FILTERED&fragment=FILTERED\": EOF", err.Error())
 
 	server.Close()
 }
