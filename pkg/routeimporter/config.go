@@ -5,27 +5,27 @@ import (
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 )
 
+type ConfigFragment struct {
+	Path             string
+	Metadata         map[string]string
+	IgnoreValidation bool
+	Children         map[string]ConfigFragment
+}
+
 type ConfigRouteEntry struct {
-	Url               string               `json:"url"`
-	LayoutTemplate    *fragment.Definition `json:"layout"`
-	FragmentTemplates fragment.Collection  `json:"fragments"`
-	Metadata          map[string]string    `json:"metadata"`
-	IgnoreValidation  bool
+	Path             string
+	Root             ConfigFragment    `json:"root"`
+	Metadata         map[string]string `json:"metadata"`
+	IgnoreValidation bool
 }
 
 func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error {
 	for _, routeEntry := range routeEntries {
-		layout := createFragment(routeEntry.LayoutTemplate)
-
-		fragments := make(fragment.Collection, len(routeEntry.FragmentTemplates))
-		for i, fragmentTemplate := range routeEntry.FragmentTemplates {
-			fragments[i] = createFragment(fragmentTemplate)
-		}
+		root := createFragment(routeEntry.Root)
 
 		err := server.Get(
-			routeEntry.Url,
-			layout,
-			fragments,
+			routeEntry.Path,
+			root,
 			viewproxy.WithRouteMetadata(routeEntry.Metadata),
 		)
 
@@ -37,9 +37,13 @@ func LoadRoutes(server *viewproxy.Server, routeEntries []ConfigRouteEntry) error
 	return nil
 }
 
-func createFragment(template *fragment.Definition) *fragment.Definition {
-	fragment := fragment.Define(template.Path, fragment.WithMetadata(template.Metadata))
-	fragment.IgnoreValidation = template.IgnoreValidation
+func createFragment(template ConfigFragment) *fragment.Definition {
+	f := fragment.Define(template.Path, fragment.WithMetadata(template.Metadata))
+	f.IgnoreValidation = template.IgnoreValidation
 
-	return fragment
+	for name, child := range template.Children {
+		fragment.WithChild(name, createFragment(child))(f)
+	}
+
+	return f
 }

@@ -40,8 +40,10 @@ func TestLoggingMiddleware(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragment.Define("/layouts/test_layout/:name"),
-		fragment.Collection{fragment.Define("/body/:name")},
+		fragment.Define(
+			"/layouts/test_layout/:name",
+			fragment.WithChild("body", fragment.Define("/body/:name")),
+		),
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}
@@ -78,8 +80,7 @@ func TestLogTripperFragments(t *testing.T) {
 
 	viewProxyServer.Get(
 		"/hello/:name",
-		fragment.Define("/layouts/test_layout/:name"),
-		fragment.Collection{fragment.Define("/body/:name")},
+		fragment.Define("/layouts/test_layout/:name", fragment.WithChild("body", fragment.Define("/body/:name"))),
 	)
 
 	log := &SliceLogger{logs: make([]string, 0)}

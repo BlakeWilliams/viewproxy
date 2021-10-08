@@ -24,15 +24,19 @@ server.PassThrough = true
 // This will make a layout request and 3 fragment requests, one for the header, hello, and footer.
 
 // GET http://localhost:3000/_view_fragments/layouts/my_layout?name=world
-layout := fragment.Define("my_layout")
-server.Get("/hello/:name", layout, fragment.Collection{
-	fragment.Define("header"), // GET http://localhost:3000/_view_fragments/header?name=world
-	fragment.Define("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
-	fragment.Define("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
-})
+myPage := fragment.Define("my_layout", fragment.WithChildren(fragment.Children{
+	"header": fragment.Define("header"), // GET http://localhost:3000/_view_fragments/header?name=world
+	"hello": fragment.Define("hello"),  // GET http://localhost:3000/_view_fragments/hello?name=world
+	"footer" fragment.Define("footer"), // GET http://localhost:3000/_view_fragments/footer?name=world
+}))
+server.Get("/hello/:name", myPage)
 
 server.ListenAndServe()
 ```
+
+Each child fragment is replaced in the parent fragment via a special tag,
+`<viewproxy-fragment>`. For example, the `header` fragment will be inserted into the
+`my_layout` fragment by looking for the following content: `<viewproxy-fragment id="header"></viewproxy-fragment>`.
 
 ## Demo Usage
 
