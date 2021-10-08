@@ -97,13 +97,15 @@ func TestResultErrorMessagesFilterUrls(t *testing.T) {
 	server := startServer(t)
 
 	r := newRequest()
-	r.WithRequestable(newFakeRequestable("http://localhost:9990/wowomg?foo=bar"))
+	req := newFakeRequestable("http://localhost:9990/wowomg?foo=bar")
+	req.templateURL = "http://localhost:9990/:name?foo=bar"
+	r.WithRequestable(req)
 	r.Timeout = defaultTimeout
 	_, err := r.Do(context.TODO())
 
 	var resultErr *ResultError
 	require.ErrorAs(t, err, &resultErr)
-	require.Equal(t, "status: 404 url: http://localhost:9990/wowomg?foo=FILTERED", resultErr.Error())
+	require.Equal(t, "status: 404 url: http://localhost:9990/:name?foo=FILTERED", resultErr.Error())
 
 	server.Close()
 }
@@ -165,17 +167,15 @@ func TestFetchTimeout(t *testing.T) {
 func TestCanIgnoreNon2xxErrors(t *testing.T) {
 	server := startServer(t)
 
-	ctx := context.Background()
 	r := newRequest()
-	r.WithRequestable(newFakeRequestable("http://localhost:9990?frgagment=slow"))
-	r.Timeout = time.Duration(100) * time.Millisecond
+	r.WithRequestable(newFakeRequestable("http://localhost:9990/?fragment=oops"))
 	r.Non2xxErrors = false
-	_, err := r.Do(context.Background())
 
-	result, err := r.DoSingle(ctx, "get", "http://localhost:9990/?fragment=oops", nil)
+	results, err := r.Do(context.Background())
 
 	require.Nil(t, err)
-	require.Equal(t, 500, result.StatusCode)
+	require.Len(t, results, 1)
+	require.Equal(t, 500, results[0].StatusCode)
 
 	server.Close()
 }

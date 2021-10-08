@@ -74,11 +74,6 @@ func (r *Request) WithRequestable(requestable Requestable) {
 	r.requestables = append(r.requestables, requestable)
 }
 
-func (r *Request) DoSingle(ctx context.Context, method string, url string, body io.ReadCloser) (*Result, error) {
-	res, err := r.fetchUrl(ctx, method, url, r.Header, body)
-	return res, r.filterError(url, err)
-}
-
 func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	tracer := otel.Tracer("multiplexer")
 	var span trace.Span
@@ -114,7 +109,7 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 				headersForRequest = r.headersWithHmac(requestable.URL())
 			}
 
-			result, err := r.fetchUrl(ctx, "GET", requestable.URL(), headersForRequest, nil)
+			result, err := r.fetchUrl(ctx, "GET", requestable, headersForRequest, nil)
 
 			if err != nil {
 				errCh <- r.filterError(requestable.TemplateURL(), err)
@@ -142,10 +137,10 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	}
 }
 
-func (r *Request) fetchUrl(ctx context.Context, method string, url string, headers http.Header, body io.ReadCloser) (*Result, error) {
+func (r *Request) fetchUrl(ctx context.Context, method string, requestable Requestable, headers http.Header, body io.ReadCloser) (*Result, error) {
 	start := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, requestable.URL(), body)
 
 	if err != nil {
 		return nil, err
@@ -189,7 +184,7 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 	}
 
 	result := &Result{
-		Url:          url,
+		Url:          requestable.URL(),
 		Duration:     duration,
 		HttpResponse: resp,
 		Body:         responseBody,
@@ -197,7 +192,7 @@ func (r *Request) fetchUrl(ctx context.Context, method string, url string, heade
 	}
 
 	if r.Non2xxErrors && (resp.StatusCode < 200 || resp.StatusCode > 299) {
-		return nil, newResultError(r, result)
+		return nil, newResultError(requestable.TemplateURL(), r, result)
 	}
 
 	return result, nil
