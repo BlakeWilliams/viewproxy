@@ -407,6 +407,38 @@ func TestRoundTripperContext(t *testing.T) {
 	require.NotNil(t, tripper.route)
 }
 
+func TestIgnoreTrailingSlash(t *testing.T) {
+	viewProxyServer, err := NewServer(targetServer.URL)
+	require.NoError(t, err)
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+	viewProxyServer.IgnoreTrailingSlash = true
+
+	root := fragment.Define(
+		"/layouts/test_layout", fragment.WithoutValidation(),
+		fragment.WithChild("header", fragment.Define("/header/:name")),
+		fragment.WithChild("body", fragment.Define("/body/:name")),
+		fragment.WithChild("footer", fragment.Define("/footer/:name")),
+	)
+
+	err = viewProxyServer.Get("/hello/:name", root)
+	require.NoError(t, err)
+
+	r := httptest.NewRequest("GET", "/hello/world/?important=true&name=override", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	resp := w.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	r = httptest.NewRequest("GET", "/hello/world/?important=true&name=override", nil)
+	w = httptest.NewRecorder()
+
+	viewProxyServer.IgnoreTrailingSlash = false
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+	resp = w.Result()
+	require.Equal(t, 404, resp.StatusCode)
+}
+
 func TestWithPassThrough_Error(t *testing.T) {
 	_, err := NewServer(targetServer.URL, WithPassThrough("%invalid%"))
 

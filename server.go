@@ -46,14 +46,18 @@ type Server struct {
 	ReadTimeout time.Duration
 	// Sets the maximum duration before timing out writes of the response
 	WriteTimeout time.Duration
-	routes       []Route
-	target       string
-	targetURL    *url.URL
-	httpServer   *http.Server
-	reverseProxy *httputil.ReverseProxy
-	Logger       logger
-	passThrough  bool
-	SecretFilter secretfilter.Filter
+	// Ignores incoming request's trailing slashes when trying to match a
+	// request URL to a route. This only applies to routes that are not declared
+	// with an explicit trailing slash.
+	IgnoreTrailingSlash bool
+	routes              []Route
+	target              string
+	targetURL           *url.URL
+	httpServer          *http.Server
+	reverseProxy        *httputil.ReverseProxy
+	Logger              logger
+	passThrough         bool
+	SecretFilter        secretfilter.Filter
 	// Sets the secret used to generate an HMAC that can be used by the target
 	// server to validate that a request came from viewproxy.
 	//
@@ -93,20 +97,21 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 	}
 
 	server := &Server{
-		MultiplexerTripper: multiplexer.NewStandardTripper(&http.Client{}),
-		Logger:             log.Default(),
-		SecretFilter:       secretfilter.New(),
-		Addr:               "localhost:3005",
-		ProxyTimeout:       defaultTimeout,
-		ReadTimeout:        defaultTimeout,
-		WriteTimeout:       defaultTimeout,
-		passThrough:        false,
-		AroundRequest:      emptyMiddleware,
-		AroundResponse:     emptyMiddleware,
-		target:             target,
-		targetURL:          targetURL,
-		routes:             make([]Route, 0),
-		tracingConfig:      tracing.TracingConfig{Enabled: false},
+		MultiplexerTripper:  multiplexer.NewStandardTripper(&http.Client{}),
+		Logger:              log.Default(),
+		SecretFilter:        secretfilter.New(),
+		Addr:                "localhost:3005",
+		ProxyTimeout:        defaultTimeout,
+		ReadTimeout:         defaultTimeout,
+		WriteTimeout:        defaultTimeout,
+		passThrough:         false,
+		AroundRequest:       emptyMiddleware,
+		AroundResponse:      emptyMiddleware,
+		IgnoreTrailingSlash: true,
+		target:              target,
+		targetURL:           targetURL,
+		routes:              make([]Route, 0),
+		tracingConfig:       tracing.TracingConfig{Enabled: false},
 	}
 
 	for _, fn := range opts {
@@ -193,6 +198,10 @@ func (s *Server) Close() {
 // TODO this should probably be a tree structure for faster lookups
 func (s *Server) MatchingRoute(path string) (*Route, map[string]string) {
 	parts := strings.Split(path, "/")
+
+	if s.IgnoreTrailingSlash && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
 
 	for _, route := range s.routes {
 		if route.matchParts(parts) {
