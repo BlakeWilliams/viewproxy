@@ -197,11 +197,10 @@ func (s *Server) Close() {
 
 // TODO this should probably be a tree structure for faster lookups
 func (s *Server) MatchingRoute(path string) (*Route, map[string]string) {
-	parts := strings.Split(path, "/")
-
-	if s.IgnoreTrailingSlash && parts[len(parts)-1] == "" {
-		parts = parts[:len(parts)-1]
+	if s.IgnoreTrailingSlash && path != "/" {
+		path = strings.TrimRight(path, "/")
 	}
+	parts := strings.Split(path, "/")
 
 	for _, route := range s.routes {
 		if route.matchParts(parts) {
