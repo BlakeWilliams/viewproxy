@@ -15,10 +15,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blakewilliams/viewproxy/pkg/notifier"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	EventFetchAll    = "fetchAll"
+	EventFetchSingle = "fetchSingle"
 )
 
 type TimeoutError struct {
@@ -48,10 +51,19 @@ type Request struct {
 	Non2xxErrors bool
 	Tripper      Tripper
 	SecretFilter secretfilter.Filter
+	notifier     notifier.Notifier
 }
 
-func NewRequest(tripper Tripper) *Request {
-	return &Request{
+type RequestOption = func(*Request)
+
+func WithNotifier(n notifier.Notifier) RequestOption {
+	return func(r *Request) {
+		r.notifier = n
+	}
+}
+
+func NewRequest(tripper Tripper, opts ...RequestOption) *Request {
+	request := &Request{
 		ctx:          context.TODO(),
 		requestables: []Requestable{},
 		Timeout:      time.Duration(10) * time.Second,
@@ -60,6 +72,20 @@ func NewRequest(tripper Tripper) *Request {
 		Header:       http.Header{},
 		Tripper:      tripper,
 	}
+
+	for _, opt := range opts {
+		opt(request)
+	}
+
+	return request
+}
+
+func (r *Request) Notifier() notifier.Notifier {
+	if r.notifier != nil {
+		return r.notifier
+	}
+
+	return notifier.NullNotifier
 }
 
 func (r *Request) WithHeadersFromRequest(req *http.Request) {
@@ -75,11 +101,6 @@ func (r *Request) WithRequestable(requestable Requestable) {
 }
 
 func (r *Request) Do(ctx context.Context) ([]*Result, error) {
-	tracer := otel.Tracer("multiplexer")
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "fetch_urls")
-	defer span.End()
-
 	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 
@@ -88,36 +109,31 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	errCh := make(chan error, reqCount)
 	results := make([]*Result, reqCount)
 
-	for i, f := range r.requestables {
-		wg.Add(1)
-		ctx = context.WithValue(ctx, RequestableContextKey{}, f)
+	r.Notifier().Emit(EventFetchAll, ctx, func(ctx context.Context) {
+		for i, f := range r.requestables {
+			wg.Add(1)
+			ctx = context.WithValue(ctx, RequestableContextKey{}, f)
 
-		go func(ctx context.Context, requestable Requestable, i int, wg *sync.WaitGroup) {
-			defer wg.Done()
-			var span trace.Span
-			ctx, span = tracer.Start(ctx, "fetch_url")
-			for key, value := range requestable.Metadata() {
-				span.SetAttributes(attribute.KeyValue{
-					Key:   attribute.Key(key),
-					Value: attribute.StringValue(value),
+			go func(ctx context.Context, requestable Requestable, i int, wg *sync.WaitGroup) {
+				defer wg.Done()
+
+				r.Notifier().Emit(EventFetchSingle, ctx, func(ctx context.Context) {
+					headersForRequest := r.Header
+					if r.HmacSecret != "" {
+						headersForRequest = r.headersWithHmac(requestable.URL())
+					}
+
+					result, err := r.fetchUrl(ctx, "GET", requestable, headersForRequest, nil)
+
+					if err != nil {
+						errCh <- r.filterError(requestable.TemplateURL(), err)
+					}
+
+					results[i] = result
 				})
-			}
-			defer span.End()
-
-			headersForRequest := r.Header
-			if r.HmacSecret != "" {
-				headersForRequest = r.headersWithHmac(requestable.URL())
-			}
-
-			result, err := r.fetchUrl(ctx, "GET", requestable, headersForRequest, nil)
-
-			if err != nil {
-				errCh <- r.filterError(requestable.TemplateURL(), err)
-			}
-
-			results[i] = result
-		}(ctx, f, i, &wg)
-	}
+			}(ctx, f, i, &wg)
+		}
+	})
 
 	// wait for all responses to complete
 	done := make(chan struct{})

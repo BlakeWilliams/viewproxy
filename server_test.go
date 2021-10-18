@@ -73,6 +73,33 @@ func TestServer(t *testing.T) {
 	require.Equal(t, "<html><body>hello world</body></html>", string(body))
 }
 
+func TestServerRoot(t *testing.T) {
+	instance := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		w.Write([]byte("Internal server error"))
+	})
+	testServer := httptest.NewServer(instance)
+
+	viewProxyServer := newServer(t, testServer.URL)
+	viewProxyServer.Addr = "localhost:9997"
+	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
+
+	root := fragment.Define("/")
+
+	err := viewProxyServer.Get("/", root)
+	require.NoError(t, err)
+	viewProxyServer.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	r := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	viewProxyServer.CreateHandler().ServeHTTP(w, r)
+
+	resp := w.Result()
+
+	require.Equal(t, 500, resp.StatusCode)
+}
+
 func TestQueryParamForwardingServer(t *testing.T) {
 	viewProxyServer := newServer(t, targetServer.URL)
 	viewProxyServer.Logger = log.New(ioutil.Discard, "", log.Ldate|log.Ltime)
@@ -336,7 +363,7 @@ func TestErrorHandler(t *testing.T) {
 			results := multiplexer.ResultsFromContext(r.Context())
 			require.NotNil(t, results)
 
-			var resultErr *ResultError
+			var resultErr *multiplexer.ResultError
 			require.ErrorAs(t, results.Error(), &resultErr)
 			require.Equal(
 				t,
