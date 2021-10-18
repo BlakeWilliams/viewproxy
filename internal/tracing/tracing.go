@@ -69,7 +69,6 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 		tracerProvider := sdktrace.NewTracerProvider(
 			sdktrace.WithResource(resource),
 			sdktrace.WithSpanProcessor(batchSpanProcessor),
-			sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		)
 
 		//TODO use structured logging
