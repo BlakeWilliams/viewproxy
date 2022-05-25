@@ -86,7 +86,7 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 		return func() {
 			err := tracerProvider.Shutdown(ctx)
 			if err != nil {
-				l.Fatalln("failed to stop tracer", err)
+				l.Println("failed to stop tracer", err)
 			}
 		}, nil
 	}
@@ -102,6 +102,6 @@ type ErrorHandler struct {
 
 func (eh ErrorHandler) Handle(err error) {
 	if err != nil {
-		eh.logger.Fatalln("encountered a problem during tracing", err)
+		eh.logger.Println("encountered a problem during tracing", err)
 	}
 }
