@@ -83,11 +83,11 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 
-	wg := sync.WaitGroup{}
 	reqCount := len(r.requestables)
+	wg := sync.WaitGroup{}
+	wg.Add(reqCount)
 	errCh := make(chan error, reqCount)
 	results := make([]*Result, reqCount)
-	wg.Add(reqCount)
 
 	for i, f := range r.requestables {
 		reqCtx := context.WithValue(ctx, RequestableContextKey{}, f)
