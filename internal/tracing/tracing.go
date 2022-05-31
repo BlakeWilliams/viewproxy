@@ -17,10 +17,10 @@ import (
 type TracingConfig struct {
 	Enabled        bool
 	Endpoint       string
+	ErrorHandler   func(error)
 	Insecure       bool
 	ServiceName    string
 	ServiceVersion string
-	ErrorHandler   func(error)
 }
 
 type logger interface {
