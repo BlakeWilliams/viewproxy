@@ -20,6 +20,7 @@ type TracingConfig struct {
 	Insecure       bool
 	ServiceName    string
 	ServiceVersion string
+	ErrorHandler   func(error)
 }
 
 type logger interface {
@@ -35,8 +36,9 @@ type logger interface {
 }
 
 func Instrument(config TracingConfig, l logger) (func(), error) {
-	eh := ErrorHandler{logger: l}
-	otel.SetErrorHandler(eh)
+	if config.ErrorHandler != nil {
+		otel.SetErrorHandler(otel.ErrorHandlerFunc(config.ErrorHandler))
+	}
 
 	if config.Enabled {
 		ctx := context.Background()
@@ -94,14 +96,4 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 	l.Println("Tracing disabled, configuring noop tracing provider")
 	otel.SetTracerProvider(trace.NewNoopTracerProvider())
 	return func() {}, nil
-}
-
-type ErrorHandler struct {
-	logger logger
-}
-
-func (eh ErrorHandler) Handle(err error) {
-	if err != nil {
-		eh.logger.Println("encountered a problem during tracing", err)
-	}
 }
