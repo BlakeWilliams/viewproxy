@@ -180,12 +180,13 @@ func (s *Server) Routes() []Route {
 	return s.routes
 }
 
-func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool) {
+func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool, errorHandler func(error)) {
 	s.tracingConfig.Enabled = true
 	s.tracingConfig.Endpoint = endpoint
 	s.tracingConfig.ServiceName = serviceName
 	s.tracingConfig.ServiceVersion = serviceVersion
 	s.tracingConfig.Insecure = insecure
+	s.tracingConfig.ErrorHandler = errorHandler
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
