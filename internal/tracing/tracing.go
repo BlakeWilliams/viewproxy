@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -35,14 +35,13 @@ func Instrument(config TracingConfig, l logger) (func(), error) {
 	if config.Enabled {
 		ctx := context.Background()
 
-		otlpOptions := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(config.Endpoint)}
+		otlpOptions := []otlptracehttp.Option{otlptracehttp.WithEndpoint(config.Endpoint)}
 		if config.Insecure {
-			otlpOptions = append(otlpOptions, otlptracegrpc.WithInsecure())
+			otlpOptions = append(otlpOptions, otlptracehttp.WithInsecure())
 		}
+		client := otlptracehttp.NewClient(otlpOptions...)
 
-		driver := otlptracegrpc.NewClient(otlpOptions...)
-
-		exporter, err := otlptrace.New(ctx, driver)
+		exporter, err := otlptrace.New(ctx, client)
 		if err != nil {
 			return nil, err
 		}
