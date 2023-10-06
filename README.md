@@ -51,15 +51,7 @@ To run `viewproxy`, run `go build ./cmd/demo && ./demo`
 
 You can use tracing to learn which fragment(s) are slowest for a given page, so you know where to optimize.
 
-To set up distributed tracing via [Open Telemetry](https://opentelemetry.io):
-
-```go
-viewProxyServer.ConfigureTracing(
-	"localhost:8360", // endpoint
-	"my-viewproxy-service", // service name
-	false, // insecure mode?
-}
-```
+To set up distributed tracing via [Open Telemetry](https://opentelemetry.io), [configure a tracing provider](https://opentelemetry.io/docs/instrumentation/go/getting-started/) in your application that uses viewproxy, and viewproxy will use that trace provider to create spans.
 
 ### Tracing attributes via fragment metadata
 
