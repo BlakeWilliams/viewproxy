@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blakewilliams/viewproxy/internal/tracing"
 	"github.com/blakewilliams/viewproxy/pkg/fragment"
 	"github.com/blakewilliams/viewproxy/pkg/multiplexer"
 	"github.com/blakewilliams/viewproxy/pkg/secretfilter"
@@ -76,7 +75,6 @@ type Server struct {
 	// A function to wrap around the generating of the response after the fragment
 	// requests have completed or errored
 	AroundResponse func(http.Handler) http.Handler
-	tracingConfig  tracing.TracingConfig
 }
 
 type ServerOption = func(*Server) error
@@ -112,7 +110,6 @@ func NewServer(target string, opts ...ServerOption) (*Server, error) {
 		target:              target,
 		targetURL:           targetURL,
 		routes:              make([]Route, 0),
-		tracingConfig:       tracing.TracingConfig{Enabled: false},
 	}
 
 	for _, fn := range opts {
@@ -178,15 +175,6 @@ func (s *Server) Target() string {
 // routes returns a slice containing routes defined on the server.
 func (s *Server) Routes() []Route {
 	return s.routes
-}
-
-func (s *Server) ConfigureTracing(endpoint string, serviceName string, serviceVersion string, insecure bool, errorHandler func(error)) {
-	s.tracingConfig.Enabled = true
-	s.tracingConfig.Endpoint = endpoint
-	s.tracingConfig.ServiceName = serviceName
-	s.tracingConfig.ServiceVersion = serviceVersion
-	s.tracingConfig.Insecure = insecure
-	s.tracingConfig.ErrorHandler = errorHandler
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
@@ -379,13 +367,6 @@ func (s *Server) Serve(listener net.Listener) error {
 }
 
 func (s *Server) configureServer(serveFn func() error) error {
-	shutdownTracing, err := tracing.Instrument(s.tracingConfig, s.Logger)
-	if err != nil {
-		log.Printf("Error instrumenting tracing: %v", err)
-	}
-
-	defer shutdownTracing()
-
 	s.httpServer = &http.Server{
 		Addr:           s.Addr,
 		Handler:        s.CreateHandler(),
