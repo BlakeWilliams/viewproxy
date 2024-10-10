@@ -39,6 +39,22 @@ func newTimeoutError(inner error) *TimeoutError {
 	return &TimeoutError{inner: inner}
 }
 
+type ErrRequestCanceled struct {
+	inner error
+}
+
+func (ec *ErrRequestCanceled) Error() string {
+	return fmt.Sprintf("multiplexer request was canceled: %s", ec.inner)
+}
+
+func (ec *ErrRequestCanceled) Unwrap() error {
+	return ec.inner
+}
+
+func newCancellationError(inner error) *ErrRequestCanceled {
+	return &ErrRequestCanceled{inner: inner}
+}
+
 type Request struct {
 	ctx          context.Context
 	Header       http.Header
@@ -130,7 +146,14 @@ func (r *Request) Do(ctx context.Context) ([]*Result, error) {
 	case <-done:
 		return results, nil
 	case <-ctx.Done():
-		return make([]*Result, 0), newTimeoutError(ctx.Err())
+		switch {
+		case errors.Is(ctx.Err(), context.Canceled):
+			return make([]*Result, 0), newCancellationError(ctx.Err())
+		case errors.Is(ctx.Err(), context.DeadlineExceeded):
+			return make([]*Result, 0), newTimeoutError(ctx.Err())
+		default:
+			return make([]*Result, 0), ctx.Err()
+		}
 	}
 }
 

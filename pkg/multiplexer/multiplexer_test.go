@@ -164,6 +164,21 @@ func TestFetchTimeout(t *testing.T) {
 	server.Close()
 }
 
+func TestFetchCancelled(t *testing.T) {
+	server := startServer(t)
+	defer server.Close()
+
+	r := newRequest()
+	r.WithRequestable(newFakeRequestable("http://localhost:9990?fragment=slow"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := r.Do(ctx)
+
+	require.EqualError(t, err, "multiplexer request was canceled: context canceled")
+}
+
 func TestCanIgnoreNon2xxErrors(t *testing.T) {
 	server := startServer(t)
 
